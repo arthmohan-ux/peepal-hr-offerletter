@@ -1,0 +1,2172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Peepal — Offer Letter Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
+<style>
+  :root{
+    --orange:#FF8514;
+    --ink:#1A1A1A;
+    --muted:#6E6A63;
+    --line:#D9D2C6;
+    --line-soft:#ECE7DD;
+    --paper:#FFFFFF;
+    --bg:#F3EFE8;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink)}
+
+  /* ===== APP SHELL (screen only) ===== */
+  .app{display:grid;grid-template-columns:340px 1fr;min-height:100vh}
+  @media(max-width:880px){.app{grid-template-columns:1fr}}
+
+  .panel{background:#fff;border-right:1px solid var(--line);padding:24px 22px;position:sticky;top:0;height:100vh;overflow-y:auto}
+  @media(max-width:880px){.panel{position:static;height:auto}}
+  .panel h1{font-size:16px;margin:0 0 3px;letter-spacing:-.01em}
+  .panel .sub{font-size:12px;color:var(--muted);margin:0 0 22px}
+  .grp{margin-bottom:16px}
+  .grp label{display:block;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .grp input[type=text],.grp input[type=date],.grp input[type=number],.grp select{
+    width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:14px;color:var(--ink);
+    font-family:inherit;background:#fff;transition:border-color .15s,box-shadow .15s}
+  .grp select{appearance:none;-webkit-appearance:none;cursor:pointer;
+    background-image:url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236E6A63' stroke-width='2'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e");
+    background-repeat:no-repeat;background-position:right 10px center;background-size:16px;padding-right:34px}
+  .grp select:disabled{background-color:#F7F5F1;color:#A9A196;cursor:not-allowed}
+  .grp input:focus,.grp select:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(247,148,29,.15)}
+  .toggle-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:#fff}
+  .toggle-row .t{font-size:13px;font-weight:600}
+  .toggle-row .t small{display:block;font-weight:400;color:var(--muted);font-size:11px;margin-top:2px}
+  .switch{position:relative;width:42px;height:24px;flex:0 0 auto}
+  .switch input{opacity:0;width:0;height:0}
+  .slider{position:absolute;inset:0;background:#cfc8bb;border-radius:999px;cursor:pointer;transition:.2s}
+  .slider::before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+  .switch input:checked + .slider{background:var(--orange)}
+  .switch input:checked + .slider::before{transform:translateX(18px)}
+  .segbtns{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fff}
+  .segbtns button{flex:1;font-family:inherit;font-size:13px;font-weight:500;color:var(--muted);background:#fff;border:none;padding:10px 12px;cursor:pointer;transition:.15s;border-right:1px solid var(--line)}
+  .segbtns button:last-child{border-right:none}
+  .segbtns button:hover{background:#FBF6EE;color:var(--ink)}
+  .segbtns button.on{background:var(--ink);color:#fff;font-weight:600;cursor:default}
+  .segbtns button.on:hover{background:var(--ink)}
+  textarea#avcText{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:12.5px;line-height:1.5;
+    font-family:inherit;color:var(--ink);min-height:120px;margin-top:10px;resize:vertical}
+  textarea#avcText:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(247,148,29,.15)}
+  .avc-wrap{max-height:0;overflow:hidden;transition:max-height .25s ease}
+  .avc-wrap.open{max-height:320px}
+  .reset{margin-top:6px;font-size:11px;color:var(--orange);background:none;border:none;cursor:pointer;padding:4px 0}
+  .actions{margin-top:24px;padding-top:20px;border-top:1px solid var(--line-soft);display:flex;flex-direction:column;gap:10px}
+  .btn{font-family:inherit;font-size:14px;font-weight:600;border-radius:10px;padding:12px 16px;cursor:pointer;border:1px solid var(--ink);
+    display:flex;align-items:center;justify-content:center;gap:9px;transition:.15s}
+  .btn svg{width:17px;height:17px}
+  .btn.pdf{background:var(--ink);color:#fff}
+  .btn.pdf:hover{background:#000}
+  .btn.word{background:#fff;color:var(--ink)}
+  .btn.word:hover{border-color:var(--orange);color:var(--orange)}
+  .hint{font-size:11px;color:var(--muted);line-height:1.5;margin-top:4px}
+  [data-mode]{display:none}
+  /* ===== LOGIN OVERLAY ===== */
+  #loginOverlay{position:fixed;inset:0;background:linear-gradient(135deg,#F3EFE8 0%,#E8DFCE 100%);z-index:9999;display:none;align-items:center;justify-content:center;font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
+  #loginOverlay.show{display:flex}
+  .login-card{background:#fff;border-radius:14px;padding:36px 34px;width:360px;box-shadow:0 8px 40px rgba(0,0,0,.10);border:1px solid var(--line)}
+  .login-card h1{font-size:18px;font-weight:700;color:var(--ink);margin:0 0 4px;letter-spacing:-.01em}
+  .login-card .sub{font-size:12px;color:var(--muted);margin:0 0 22px}
+  .login-card label{display:block;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px}
+  .login-card input{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:14px;color:var(--ink);font-family:inherit;background:#fff;box-sizing:border-box}
+  .login-card input:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(247,148,29,.15)}
+  .login-card button.submit{width:100%;font-family:inherit;font-size:14px;font-weight:600;background:var(--ink);color:#fff;border:1px solid var(--ink);border-radius:10px;padding:11px 16px;margin-top:22px;cursor:pointer;transition:.15s}
+  .login-card button.submit:hover{background:#000}
+  .login-card .err{color:#c62828;font-size:12px;margin-top:12px;min-height:16px;text-align:center}
+  .login-card .brand{color:var(--orange);font-weight:700}
+  /* ===== LOGOUT PILL ===== */
+  #logoutPill{position:absolute;top:18px;right:22px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);z-index:5}
+  #logoutPill .who{font-weight:600;color:var(--ink)}
+  #logoutPill button{background:none;border:1px solid var(--line);color:var(--muted);padding:4px 10px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:11px;transition:.15s}
+  #logoutPill button:hover{border-color:var(--orange);color:var(--orange)}
+
+  /* ===== CALCULATION TABLE (promotion/revision transparency doc) ===== */
+  .calc-tbl{width:100%;border-collapse:collapse;font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;margin:0 0 10px}
+  .calc-tbl th{font-size:7pt;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);
+    padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--ink)}
+  .calc-tbl th.amt{text-align:right}
+  .calc-tbl .sec td{font-size:7pt;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--orange);
+    background:#FBF6EE;padding:4px 8px;border-bottom:1px solid var(--line-soft)}
+  .calc-tbl td{font-size:8.8pt;padding:4px 8px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+  .calc-tbl td.lab{width:38%}
+  .calc-tbl td.amt{text-align:right;font-variant-numeric:tabular-nums;width:16%}
+  .calc-tbl td.note{color:var(--muted);font-size:8.1pt;line-height:1.45}
+  .calc-tbl tr.tot td{font-weight:700;border-top:1px solid var(--ink);border-bottom:1px solid var(--ink);background:#FCFAF6}
+  .calc-tbl tr.grand td{font-weight:700;background:var(--ink);color:#fff}
+  .cap-note{background:#FCFAF6;border-left:3px solid var(--orange);padding:10px 14px;border-radius:0 6px 6px 0;
+    font-size:8.8pt;line-height:1.55;margin:8px 0 14px}
+  .cap-note b{font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-weight:600}
+
+  /* congratulatory message card */
+  .msg-card{border:1px solid var(--line);border-radius:10px;padding:16px 18px;background:#FCFAF6;margin-top:6px}
+  .msg-card .mk{font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-size:8pt;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--orange);margin:0 0 8px}
+  .msg-card p{font-size:9.8pt;line-height:1.6;margin:0}
+
+  .approval-badge{font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-size:8pt;color:var(--muted);
+    border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:0 0 14px;line-height:1.5}
+  .approval-badge b{color:var(--ink);font-weight:600}
+
+  /* ===== PREVIEW AREA (screen) ===== */
+  .stage{padding:30px 24px 60px;overflow-x:auto}
+  .doc{margin:0 auto;width:210mm;max-width:100%}
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto 22px;
+    box-shadow:0 2px 14px rgba(0,0,0,.10);position:relative;display:flex;flex-direction:column}
+  .sheet-pad{padding:14mm 18mm 6mm;flex:1;display:flex;flex-direction:column}
+
+  /* per-sheet header/footer (screen preview) */
+  .sheet-head{display:flex;align-items:center;justify-content:flex-start;padding:9mm 18mm 0}
+  .sheet-head img{height:34px;width:auto}
+  .sheet-head .hr{flex:1;height:1px;background:var(--line-soft);margin-left:14px}
+  .sheet-foot{padding:0 18mm 8mm;margin-top:auto}
+  .sheet-foot .frule{height:1px;background:var(--line-soft);margin-bottom:6px}
+  .sheet-foot .fcent{text-align:center;font-size:7.6pt;line-height:1.5;color:var(--muted)}
+  .sheet-foot .fcent a{color:var(--muted);text-decoration:none}
+
+  /* ===== LETTER TYPOGRAPHY (shared by preview + print) ===== */
+  .letter-body{font-family:Georgia,Cambria,"Times New Roman",Times,serif;font-size:9.6pt;line-height:1.55;color:var(--ink)}
+  .letter-body p{margin:0 0 8px}
+  .title{font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-weight:700;font-size:22pt;letter-spacing:-.01em;margin:6px 0 2px}
+  .title .o{color:var(--orange)}
+  .date-line{font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-size:10pt;color:var(--ink);text-align:right;margin:0 0 14px}
+  .date-line b{font-weight:600}
+  .ph{color:#B9B1A2;font-style:italic}
+
+  .sig-tbl{width:100%;border-collapse:collapse;margin-top:24px;break-inside:avoid;page-break-inside:avoid}
+  .sig-tbl.p1-sig{margin-top:180px}
+  .letter-body.p1{font-size:10pt;line-height:1.85}
+  .letter-body.p1 p{margin:0 0 17px}
+  .sig-tbl td{width:50%;vertical-align:top;padding:0 30px 0 0}
+  .sig-tbl td.r{padding:0 0 0 30px}
+  .sig-line{border-bottom:1px solid var(--ink);height:44px;margin-bottom:8px}
+  .sig-nm{font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-weight:600;font-size:10pt}
+  .sig-ti{font-size:9pt;color:var(--muted)}
+
+  .decl{margin-top:26px;border:1px solid var(--line);border-left:3px solid var(--orange);border-radius:8px;padding:18px 22px 24px;background:#FCFAF6}
+  .decl h3{font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-size:9pt;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--orange);margin:0 0 9px}
+  .decl p{font-size:9.6pt;line-height:1.55;margin:0}
+  .decl-sign{width:100%;border-collapse:collapse;margin-top:30px}
+  .decl-sign td{vertical-align:bottom}
+  .decl-sign .k{font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-size:8pt;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  .decl-sign .vsign{border-bottom:1px solid var(--ink);height:42px}
+
+  /* annexure header */
+  .ax-head{margin:0 0 10px}
+  .ax-tag{font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-size:8pt;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--orange)}
+  .ax-head h2{font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-weight:700;font-size:16pt;letter-spacing:-.01em;margin:2px 0 0}
+  .ax-head .rule{height:2px;background:var(--ink);width:100%;margin-top:8px}
+
+  /* salary table */
+  .sal{width:100%;border-collapse:collapse;font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;margin:0 0 6px}
+  .sal th{font-size:7pt;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);
+    padding:4px 8px;text-align:right;border-bottom:1.5px solid var(--ink)}
+  .sal th:first-child{text-align:left}
+  .sal .part td{font-size:7pt;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--orange);
+    background:#FBF6EE;padding:3px 8px;border-bottom:1px solid var(--line-soft)}
+  .sal td{font-size:8.6pt;padding:2.6px 8px;border-bottom:1px solid var(--line-soft)}
+  .sal td.lab{color:var(--ink)}
+  .sal td.lab small{color:var(--muted);font-size:7.4pt}
+  .sal td.amt{text-align:right;font-variant-numeric:tabular-nums;width:22%}
+  .sal tr.sum td{font-weight:700;border-top:1px solid var(--ink);border-bottom:1px solid var(--ink);background:#FCFAF6}
+  .sal tr.grand td{font-weight:700;background:var(--ink);color:#fff}
+  .sal tr.grand td.lab{color:#fff}
+
+  /* perks strip (D/E/F) */
+  /* salary summary strip (take-home / scenarios / benefits) */
+  .perks{display:table;width:100%;table-layout:fixed;border-collapse:collapse;border:1px solid var(--line);
+    border-radius:9px;overflow:hidden;margin:2px 0 8px;background:#FCFAF6}
+  .perks .pc{display:table-cell;width:33.33%;padding:0;vertical-align:top;border-right:1px solid var(--line-soft)}
+  .perks.perks-2col .pc{width:50%}
+  .perks .pc:last-child{border-right:none}
+  .perks .pk{font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-size:6.8pt;font-weight:700;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--orange);padding:6px 13px 4px;margin:0;border-bottom:1px solid var(--line-soft)}
+  .perks .pr{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+    font-size:8.1pt;line-height:1.3;padding:3px 13px}
+  .perks .pr + .pr{border-top:1px dotted var(--line-soft)}
+  .perks .pr .lbl{color:var(--muted)}
+  .perks .pr .lbl small{font-size:7pt;color:#A89F90}
+  .perks .pr .val{font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-weight:600;font-variant-numeric:tabular-nums;
+    color:var(--ink);white-space:nowrap;text-align:right}
+  .perks .pnote{font-size:7.6pt;line-height:1.4;color:var(--muted);padding:5px 13px 7px;border-top:1px dotted var(--line-soft)}
+  .perks .pnote b{font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-weight:600;color:var(--ink);font-size:8pt}
+
+  /* benefits + notes */
+  .blk-h{font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-weight:700;font-size:10.5pt;margin:2px 0 3px}
+  .blk-rule{width:32px;height:2px;background:var(--orange);margin:0 0 7px}
+  ul.feat{list-style:none;margin:0 0 8px;padding:0}
+  ul.feat li{position:relative;padding:0 0 5px 16px;font-size:9.6pt;line-height:1.5}
+  ul.feat li::before{content:"";position:absolute;left:0;top:7px;width:5px;height:5px;border-radius:50%;background:var(--orange)}
+  ul.feat li b{font-weight:700}
+  ol.notes{margin:0;padding-left:16px;font-size:9.6pt;line-height:1.5}
+  ol.notes li{padding-bottom:3px}
+
+  /* terms */
+  .keep{break-inside:avoid;page-break-inside:avoid}
+  .term{margin-bottom:15px}
+  .term h4{font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-weight:700;font-size:10.5pt;margin:0 0 6px;break-after:avoid;page-break-after:avoid}
+  .term h4 .tn{color:var(--orange);margin-right:7px}
+  /* everything under a numbered clause is indented to align under its title */
+  .term p{margin:0 0 8px 22px;orphans:3;widows:3}
+  .subh{font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-weight:600;font-size:9.6pt;margin:10px 0 5px 22px;break-after:avoid;page-break-after:avoid;break-inside:avoid}
+  .subh.o{color:var(--orange)}
+  .roman{font-style:italic;color:#55504a;margin:8px 0 4px 36px;break-after:avoid;page-break-after:avoid;break-inside:avoid}
+
+  /* lettered sub-clauses — native markers so baselines always align (Word renders them too) */
+  ol.alpha{list-style:lower-alpha outside;margin:5px 0 10px 22px;padding-left:20px}
+  ol.alpha > li{padding:0 0 7px 4px;line-height:1.55;break-inside:avoid;page-break-inside:avoid}
+  ol.alpha > li::marker{content:counter(list-item,lower-alpha) ") ";color:var(--orange);font-weight:700;
+    font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-size:9.2pt}
+  ol.alpha > li b{font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-weight:600}
+
+  /* bullets — deepest level */
+  ul.cl{list-style:disc outside;margin:5px 0 10px 36px;padding-left:18px}
+  ul.cl li{padding:0 0 6px 3px;line-height:1.55;break-inside:avoid;page-break-inside:avoid}
+  ul.cl li::marker{color:var(--orange);font-size:9pt}
+  ul.cl li b{font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-weight:600}
+
+  .conf{background:#FCFAF6;border-left:3px solid var(--orange);padding:9px 13px;border-radius:0 6px 6px 0;margin:8px 0 0 22px;break-inside:avoid;page-break-inside:avoid}
+
+  /* print/fixed header+footer hidden on screen */
+  .pf-head,.pf-foot{display:none}
+
+  /* ===================== PRINT ===================== */
+  @media print{
+    @page{ size:A4; margin:11mm 0; }
+    html,body{background:#fff;height:100%}
+    .app{display:block;height:100%}
+    .panel{display:none !important}
+    .stage{padding:0;overflow:visible;height:100%}
+    .doc{width:auto;margin:0;height:100%}
+    table.report{width:100%;border-collapse:collapse;height:100%}
+    table.report td{padding:0;vertical-align:top}
+    table.report tbody td{height:100%}
+    thead{display:table-header-group}
+    tfoot{display:table-footer-group}
+    .rpt-head{padding:0 18mm 4mm}
+    .rpt-head img{height:30px;width:auto;display:block}
+    .rpt-head .hr{height:1px;background:var(--line-soft);margin-top:6px}
+    .rpt-foot{padding:5mm 18mm 0;text-align:center}
+    .rpt-foot .frule{height:1px;background:var(--line-soft);margin-bottom:5px}
+    .rpt-foot .fcent{font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Calibri,Arial,sans-serif;font-size:7.4pt;line-height:1.55;color:var(--muted)}
+    .letter-body{padding:0 18mm}
+    .letter-body.p1{padding-top:3mm}
+    .letter-body.pb{break-before:page;padding-top:3mm}
+  }
+</style>
+</head>
+<body>
+<div id="loginOverlay">
+  <div class="login-card">
+    <h1>Peepal <span class="brand">Letter Generator</span></h1>
+    <p class="sub">Sign in to continue</p>
+    <label for="loginEmail">Email</label>
+    <input type="email" id="loginEmail" autocomplete="username" placeholder="you@peepalconsulting.com" />
+    <label for="loginPass">Password</label>
+    <input type="password" id="loginPass" autocomplete="current-password" />
+    <button type="button" class="submit" id="loginBtn">Sign in</button>
+    <div class="err" id="loginErr"></div>
+  </div>
+</div>
+
+<div class="app">
+
+  <!-- ============ CONTROL PANEL ============ -->
+  <aside class="panel">
+    <h1>Peepal Letter Generator</h1>
+    <p class="sub">Peepal Consulting · HR</p>
+    <div id="logoutPill" style="position:static;margin:0 0 18px;top:auto;right:auto"><span class="who" id="whoAmI"></span><button type="button" id="logoutBtn">Sign out</button></div>
+
+    <div class="grp">
+      <label for="letterType">Letter Type</label>
+      <select id="letterType">
+        <option value="offer">Offer Letter</option>
+        <option value="trainee">Offer Management Trainee</option>
+        <option value="promotion">Letter of Promotion</option>
+        <option value="revision">Letter of Increment</option>
+      </select>
+    </div>
+
+    <div id="adminOnly">
+      <div class="grp">
+        <label>Provident Fund</label>
+        <div class="segbtns" id="pfSeg">
+          <button type="button" data-pf="standard" class="on">Standard PF</button>
+          <button type="button" data-pf="none">No PF</button>
+        </div>
+      </div>
+      <div class="grp">
+        <label>Variable Pay</label>
+        <div class="segbtns" id="varSeg">
+          <button type="button" data-var="yes" class="on">Yes</button>
+          <button type="button" data-var="no">No</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== OFFER LETTER FIELDS ===== -->
+    <div data-mode="offer">
+      <div class="grp">
+        <label for="offerDate">Offer Date</label>
+        <input type="date" id="offerDate" />
+      </div>
+      <div class="grp">
+        <label for="cName">Candidate Name</label>
+        <input type="text" id="cName" placeholder="e.g. Aastha Sharma" autocomplete="off" />
+      </div>
+      <div class="grp">
+        <label for="cDept">Department</label>
+        <select id="cDept">
+          <option value="">Select department…</option>
+        </select>
+      </div>
+      <div class="grp">
+        <label for="cRole">Role Title</label>
+        <select id="cRole" disabled>
+          <option value="">Select department first</option>
+        </select>
+      </div>
+      <div class="grp" id="cRoleOtherWrap" style="display:none">
+        <label for="cRoleOther">Role Title (manual)</label>
+        <input type="text" id="cRoleOther" placeholder="Type exact role title" autocomplete="off" />
+      </div>
+      <div class="grp">
+        <label for="cDoj">Date of Joining</label>
+        <input type="date" id="cDoj" />
+      </div>
+      <div class="grp">
+        <label for="cCtc">Annual CTC (₹)</label>
+        <input type="number" id="cCtc" placeholder="e.g. 1150000" min="400000" step="1000" />
+        <div class="hint" id="ctcHint">Minimum ₹4,00,000. Salary structure is generated from this.</div>
+      </div>
+      <div class="grp">
+        <label>Assured Variable Component</label>
+        <div class="toggle-row">
+          <div class="t">Include this clause<small>Off by default · for select hires</small></div>
+          <label class="switch"><input type="checkbox" id="avcToggle" /><span class="slider"></span></label>
+        </div>
+        <div class="avc-wrap" id="avcWrap">
+          <textarea id="avcText" spellcheck="false"></textarea>
+          <button class="reset" id="avcReset" type="button">↺ Reset to default wording</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== MANAGEMENT TRAINEE FIELDS ===== -->
+    <div data-mode="trainee">
+      <div class="grp"><label for="tDate">Letter Date</label><input type="date" id="tDate" /></div>
+      <div class="grp"><label for="tName">Candidate Name</label><input type="text" id="tName" placeholder="e.g. Zeba" autocomplete="off" /></div>
+      <div class="grp"><label for="tRole">Role Title</label><input type="text" id="tRole" placeholder="e.g. Management Trainee – Talent Acquisition" autocomplete="off" /><div class="hint">Type the full role as it should appear in the letter.</div></div>
+      <div class="grp"><label for="tStipend">Monthly Stipend (₹)</label><input type="number" id="tStipend" placeholder="e.g. 15000" min="0" step="500" /></div>
+      <div class="grp"><label for="tStart">Start Date</label><input type="date" id="tStart" /></div>
+      <div class="grp"><label for="tEnd">End Date</label><input type="date" id="tEnd" /></div>
+      <div class="grp"><label for="tDoj">Date of Joining</label><input type="date" id="tDoj" /></div>
+    </div>
+
+    <!-- ===== PROMOTION / REVISION SHARED FIELDS ===== -->
+    <div data-mode="promo">
+      <div class="grp">
+        <label for="pEffDate">Effective Date</label>
+        <input type="date" id="pEffDate" />
+      </div>
+      <div class="grp">
+        <label for="pName">Employee Name</label>
+        <input type="text" id="pName" placeholder="e.g. Kavana R" autocomplete="off" />
+      </div>
+      <div class="grp">
+        <label for="pDept">Department</label>
+        <select id="pDept"><option value="">Select department…</option></select>
+      </div>
+      <div class="grp">
+        <label for="pRole">Current Role</label>
+        <select id="pRole" disabled><option value="">Select department first</option></select>
+      </div>
+      <div class="grp" id="pRoleOtherWrap" style="display:none">
+        <label for="pRoleOther">Current Role (manual)</label>
+        <input type="text" id="pRoleOther" placeholder="Type exact current title" autocomplete="off" />
+        <label style="margin-top:8px">Salary/Role Index Tier</label>
+        <select id="pTierOther">
+          <option value="1">Tier 1 — Salary Idx 16 / Role Idx 8</option>
+          <option value="2">Tier 2 — Salary Idx 14 / Role Idx 7</option>
+          <option value="3">Tier 3 — Salary Idx 12 / Role Idx 6</option>
+        </select>
+      </div>
+      <div class="grp">
+        <label for="pCtc">Current Annual CTC (₹)</label>
+        <input type="number" id="pCtc" placeholder="e.g. 932647" min="0" step="1" />
+      </div>
+      <div class="grp">
+        <label for="pDuration">Measurement Window</label>
+        <select id="pDuration">
+          <option value="12">12 months (Trigger Target 100%)</option>
+          <option value="15">15 months (Trigger Target 90%)</option>
+          <option value="18">18 months (Trigger Target 80%)</option>
+          <option value="21">21 months (Trigger Target 70%)</option>
+        </select>
+      </div>
+      <div class="grp">
+        <label for="pPerf">Average Performance Achievement (%)</label>
+        <input type="number" id="pPerf" placeholder="e.g. 162" min="0" step="0.01" />
+      </div>
+
+      <!-- promotion-only: QA + role-promotion decision -->
+      <div data-mode="promoOnly">
+        <div class="grp">
+          <label for="pQa">Average QA Rating (last window)</label>
+          <input type="number" id="pQa" placeholder="e.g. 4.2" min="0" max="5" step="0.01" />
+          <div class="hint">Role promotion needs a QA average of 4.0 or higher.</div>
+        </div>
+        <div class="grp">
+          <label>Role Promotion</label>
+          <div class="toggle-row">
+            <div class="t">Manager approves role change<small>Off = salary promotion only, even if eligible</small></div>
+            <label class="switch"><input type="checkbox" id="roleApproveToggle" /><span class="slider"></span></label>
+          </div>
+        </div>
+        <div class="grp" id="newRoleWrap" style="display:none">
+          <label for="pNewDept">New Department</label>
+          <select id="pNewDept"><option value="">Same as current</option></select>
+        </div>
+        <div class="grp" id="newRoleWrap2" style="display:none">
+          <label for="pNewRole">New Role Title</label>
+          <select id="pNewRole"><option value="">Select role…</option></select>
+        </div>
+        <div class="grp" id="newRoleOtherWrap" style="display:none">
+          <label for="pNewRoleOther">New Role Title (manual)</label>
+          <input type="text" id="pNewRoleOther" placeholder="Type exact new title" autocomplete="off" />
+        </div>
+      </div>
+
+      <div class="grp">
+        <label for="pManager">Reporting Manager</label>
+        <input type="text" id="pManager" placeholder="e.g. Rupa Nair" autocomplete="off" />
+        <div class="hint">Approval routes to this manager, then to Vijay Kumar &amp; Kaveri.</div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn pdf" id="dlPdf">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="dlPdfLabel">Download PDF</span>
+      </button>
+      <button class="btn word" id="dlWord">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M14 3v5h5M14 3l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h8Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.5 12l1 4 1.5-4 1.5 4 1-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="dlWordLabel">Download Word</span>
+      </button>
+
+      <div data-mode="promo" id="calcActions" style="border-top:1px dashed var(--line);margin-top:6px;padding-top:12px">
+        <p class="hint" style="margin:0 0 8px;font-weight:600;color:var(--ink)">Calculation sheet (separate document)</p>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <button class="btn pdf" id="dlCalcPdf" style="background:#fff;color:var(--ink);border-color:var(--ink)">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Calculation — PDF
+          </button>
+          <button class="btn word" id="dlCalcWord">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M14 3v5h5M14 3l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h8Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.5 12l1 4 1.5-4 1.5 4 1-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Calculation — Word
+          </button>
+        </div>
+      </div>
+
+      <p class="hint">PDF is generated as real vector text — no rasterization. Word downloads as a real Open XML .docx (opens in Word, Pages, Google Docs).</p>
+    </div>
+  </aside>
+
+  <!-- ============ PREVIEW STAGE ============ -->
+  <main class="stage">
+    <div class="doc" id="doc"></div>
+  </main>
+</div>
+
+<!-- fixed (print) header + footer -->
+<div class="pf-head"><img id="pfLogo" alt="Peepal" /><div class="hr"></div></div>
+<div class="pf-foot">
+  <div class="frule"></div>
+  <div class="fcent">
+    Peepal Technology &amp; Management Consulting Pvt. Ltd.<br>
+    info@peepalconsulting.com &nbsp;|&nbsp; www.peepalconsulting.com<br>
+    2C, Mittal Tower, MG Road, Bangalore 560001 &nbsp;|&nbsp; CIN: U72200KA2005PTC037484
+  </div>
+</div>
+
+<script>
+/* ===== LOGIN GATE =====
+   Credentials injected at Netlify build time from environment variables
+   (ADMIN_USER, ADMIN_PASS, HR_USER, HR_PASS) — see inject-secrets.js.
+   Placeholder tokens below are replaced at deploy. Fallback values allow
+   local testing without a build step. */
+const CREDS = {
+  '__ADMIN_USER__': { pass: '__ADMIN_PASS__', role: 'admin' },
+  '__HR_USER__':    { pass: '__HR_PASS__',    role: 'hr' }
+};
+
+function applyRolePermissions(){
+  IS_ADMIN = (CURRENT_ROLE === 'admin');
+  // HR sees only Offer Letter + Management Trainee. Hide promotion & revision from the dropdown.
+  const sel = document.getElementById('letterType');
+  Array.from(sel.options).forEach(o => {
+    const restricted = (o.value === 'promotion' || o.value === 'revision');
+    o.hidden = restricted && CURRENT_ROLE === 'hr';
+    o.disabled = restricted && CURRENT_ROLE === 'hr';
+  });
+  if(CURRENT_ROLE === 'hr' && (sel.value === 'promotion' || sel.value === 'revision')){
+    sel.value = 'offer';
+  }
+  document.getElementById('whoAmI').textContent = (CURRENT_ROLE === 'admin' ? 'Admin' : 'HR') + ' · signed in';
+  applyModeVisibility();
+  render();
+}
+
+function mountLogin(){
+  const saved = sessionStorage.getItem('peepal_role');
+  const savedEmail = sessionStorage.getItem('peepal_email');
+  if(saved === 'admin' || saved === 'hr'){
+    CURRENT_ROLE = saved;
+    applyRolePermissions();
+    return;
+  }
+  const overlay = document.getElementById('loginOverlay');
+  overlay.classList.add('show');
+  document.getElementById('loginEmail').focus();
+  const submit = () => {
+    const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+    const pass  = document.getElementById('loginPass').value;
+    const err   = document.getElementById('loginErr');
+    const c = CREDS[email];
+    if(!c || c.pass !== pass){
+      err.textContent = 'Invalid email or password';
+      return;
+    }
+    CURRENT_ROLE = c.role;
+    sessionStorage.setItem('peepal_role', c.role);
+    sessionStorage.setItem('peepal_email', email);
+    overlay.classList.remove('show');
+    err.textContent = '';
+    applyRolePermissions();
+  };
+  document.getElementById('loginBtn').addEventListener('click', submit);
+  ['loginEmail','loginPass'].forEach(id =>
+    document.getElementById(id).addEventListener('keydown', e => { if(e.key === 'Enter') submit(); })
+  );
+  document.getElementById('logoutBtn').addEventListener('click', ()=>{
+    sessionStorage.removeItem('peepal_role');
+    sessionStorage.removeItem('peepal_email');
+    location.reload();
+  });
+}
+
+const LOGO = "data:image/png;base64,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";
+document.getElementById('pfLogo').src = LOGO;
+
+const AVC_DEFAULT = "An average of 70% of the variable salary for the first 12 months of your employment is assured, subject to meeting minimum performance criteria. For instance, if at the end of 12 months your average performance payout is 55%, the difference of 15% (i.e., 70% \u2013 55%) for that period will be paid in the 12th-month payroll.";
+
+/* ===== AUTH + ROLE STATE ===== */
+let CURRENT_ROLE = null;                  // 'admin' | 'hr' — set by login
+let IS_ADMIN = false;                     // derived from CURRENT_ROLE
+let pfMode  = 'standard';
+let varMode = 'yes';
+function currentModes(){ return { hasPF: pfMode === 'standard', hasVar: varMode === 'yes' }; }
+
+/* ---------- helpers ---------- */
+const fmt = n => (Math.round(n*100)/100).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function fmtDate(v){
+  if(!v) return '';
+  const d=new Date(v+'T00:00:00'); if(isNaN(d)) return esc(v);
+  const day=d.getDate(), mon=d.toLocaleString('en-GB',{month:'long'}), yr=d.getFullYear();
+  const sfx=(day%10==1&&day!=11)?'st':(day%10==2&&day!=12)?'nd':(day%10==3&&day!=13)?'rd':'th';
+  return `${day}<sup>${sfx}</sup> ${mon}, ${yr}`;
+}
+const val = (v,ph) => v && v.trim() ? esc(v) : `<span class="ph">[${ph}]</span>`;
+
+/* ---------- salary engine (same formulas as the breakup studio) ---------- */
+function calc(ctc, opts={}){
+  const hasPF  = opts.hasPF  !== false;
+  const hasVar = opts.hasVar !== false;
+  let gross;
+  if      ( hasVar &&  hasPF) gross = (ctc*0.75)/12 - 1950;
+  else if ( hasVar && !hasPF) gross = (ctc*0.75)/12;
+  else if (!hasVar &&  hasPF) gross =  ctc/12 - 1950;
+  else                        gross =  ctc/12;
+  const basic = Math.max(gross*0.5, 21278);
+  const bonus = Math.round(0.0833*basic);
+  const allow = gross - (basic + bonus);
+  const pfw   = basic + bonus + allow;
+  const empPF  = hasPF ? Math.round(pfw > 15000 ? 15000*0.13 : pfw*0.13) : 0;
+  const variable = hasVar ? (gross + empPF) / 3 : 0;
+  const totalA = basic + bonus + allow + variable;
+  const mctc   = totalA + empPF;
+  const empCPF = hasPF ? Math.round(pfw > 15000 ? 15000*0.12 : pfw*0.12) : 0;
+  const pt     = gross > 25000 ? 200 : 0;
+  const totalDed = empPF + empCPF + pt;
+  const net    = mctc - totalDed - variable;
+  const netpf  = empPF + empCPF;
+  return { gross, basic, bonus, allow, empPF, variable, totalA, mctc, annual: mctc*12,
+           empCPF, pt, totalDed, net, netpf, hasPF, hasVar };
+}
+
+/* ---------- salary table html ---------- */
+function salTable(ctc){
+  if(!ctc || ctc<400000){
+    return `<table class="sal"><thead><tr><th>Salary Components</th><th>Per Month</th><th>Per Annum</th></tr></thead>
+      <tbody><tr><td class="lab" colspan="3" style="padding:14px 8px;color:#B9B1A2;font-style:italic">Enter an Annual CTC of ₹4,00,000 or more to generate the salary structure.</td></tr></tbody></table>`;
+  }
+  const d = calc(ctc, currentModes());
+  const r = (l,m,a,cls='') => `<tr class="${cls}"><td class="lab">${l}</td><td class="amt">${fmt(m)}</td><td class="amt">${fmt(a)}</td></tr>`;
+  let html = `<table class="sal">
+    <thead><tr><th>Salary Components</th><th>Per Month</th><th>Per Annum</th></tr></thead>
+    <tbody>
+      <tr class="part"><td colspan="3">Part A — Salary Structure</td></tr>
+      ${r('Basic + DA', d.basic, d.basic*12)}
+      ${r('Monthly Bonus', d.bonus, d.bonus*12)}
+      ${r('Other Allowances', d.allow, d.allow*12)}`;
+  if(d.hasVar) html += r('Variable Salary <small>(25% of CTC)</small>', d.variable, d.variable*12);
+  html += r('Total (A)', d.totalA, d.totalA*12, 'sum');
+  if(d.hasPF){
+    html += `<tr class="part"><td colspan="3">Part B — Employer Contribution for PF</td></tr>
+      ${r('Employer Contribution to P.F.', d.empPF, d.empPF*12)}
+      <tr class="grand"><td class="lab">Total CTC (A + B)</td><td class="amt">${fmt(d.mctc)}</td><td class="amt">${fmt(d.annual)}</td></tr>`;
+  } else {
+    html += `<tr class="grand"><td class="lab">Total CTC (A)</td><td class="amt">${fmt(d.mctc)}</td><td class="amt">${fmt(d.annual)}</td></tr>`;
+  }
+  const dedLabel = d.hasPF ? 'Part C — Deductions (PF &amp; PT)' : 'Part B — Deductions (PT)';
+  html += `<tr class="part"><td colspan="3">${dedLabel}</td></tr>`;
+  if(d.hasPF){
+    html += r('Employer Contribution to P.F.', d.empPF, d.empPF*12);
+    html += r('Employee Contribution to P.F.', d.empCPF, d.empCPF*12);
+  }
+  html += r('Professional Tax', d.pt, d.pt*12);
+  html += r('Total Deductions', d.totalDed, d.totalDed*12, 'sum');
+  html += `</tbody></table>`;
+  return html;
+}
+function perks(ctc){
+  const has = ctc && ctc>=400000;
+  const d = has ? calc(ctc, currentModes()) : null;
+  const v = x => has ? fmt(x) : '—';
+  const row = (l,val) => `<div class="pr"><span class="lbl">${l}</span><span class="val">${val}</span></div>`;
+  const cols = [];
+  cols.push(`<div class="pc">
+    <div class="pk">Net Monthly Take-home</div>
+    ${row('Take-home ' + (d && d.hasVar ? '<small>(excl. variable)</small>' : ''), v(d?d.net:0))}
+    ${d && d.hasPF ? row('Net Provident Fund', v(d.netpf)) : ''}
+  </div>`);
+  if(!d || d.hasVar){
+    cols.push(`<div class="pc">
+      <div class="pk">Variable Salary Scenarios</div>
+      ${row('Minimum <small>(45%)</small>', v(d?d.variable*0.45:0))}
+      ${row('Target <small>(100%)</small>', v(d?d.variable:0))}
+      ${row('High <small>(200%)</small>', v(d?d.variable*2:0))}
+    </div>`);
+  }
+  cols.push(`<div class="pc">
+    <div class="pk">Other Benefits</div>
+    ${row('Medical Insurance', '5,00,000.00')}
+    ${row('Accident Insurance', '10,00,000.00')}
+  </div>`);
+  const cls = cols.length === 2 ? ' perks-2col' : '';
+  return `<div class="perks${cls}">${cols.join('')}</div>`;
+}
+
+/* ---------- additional benefits (with optional AVC) ---------- */
+function additionalBenefits(avcOn, avcText){
+  const avcAllowed = varMode === 'yes';
+  const avc = (avcOn && avcAllowed) ? `<li><b>Assured Variable Component:</b> ${esc(avcText)}</li>` : '';
+  return `<h3 class="blk-h">Additional Benefits</h3><div class="blk-rule"></div>
+  <ul class="feat">
+    ${avc}
+    <li><b>Insurance Premium:</b> The premium cost of the insurance value mentioned is covered exclusively by the company.</li>
+    <li><b>Gratuity:</b> Gratuity shall be payable as per the “Payment of Gratuity Act” of the Government of India, calculated at 15 days’ basic salary for every completed year of service. It is payable to an employee on disengagement of employment after she has rendered continuous service of not less than five years in Peepal Consulting.</li>
+    <li><b>Training Program Reimbursement:</b> Company will reimburse 50% amount for approved training programs, up to a limit of INR 25,000, as per the internal policy.</li>
+    <li><b>Salary Advance:</b> Employees can take salary payments in advance for any emergencies. This can be availed up to two times in a financial year, as per the internal policy.</li>
+  </ul>
+  <h3 class="blk-h" style="font-size:10pt">Notes on Salary &amp; Benefits</h3><div class="blk-rule"></div>
+  <ol class="notes">
+    <li>Salary will be paid into your salary account on or before the 2nd business day of every following month.</li>
+    <li>Tax deduction at source will be applicable as per Govt. of India regulations.</li>
+    <li>Variable salary is payable monthly, and subject to performance as per company policies.</li>
+  </ol>`;
+}
+
+/* ---------- static signature block ---------- */
+function sigBlock(){
+  return `<table class="sig-tbl"><tr>
+    <td><div class="sig-line"></div><div class="sig-nm">Vijay Kumar</div><div class="sig-ti">Founder &amp; CEO</div></td>
+    <td class="r"><div class="sig-line"></div><div class="sig-nm">Employee Signature</div></td>
+  </tr></table>`;
+}
+
+/* ---------- TERMS (verbatim) — Annexure B ---------- */
+const TERMS = `
+<div class="ax-head"><div class="ax-tag">Annexure B</div><h2>Terms of Employment</h2><div class="rule"></div></div>
+<div class="term"><h4><span class="tn">1.</span>Salary</h4>
+<p>Your detailed salary structure is provided in Annexure A. Salary revisions will be conducted periodically, based on your performance and organizational policies.</p>
+<p class="conf">Please note that salary details are strictly confidential and must not be disclosed, either within or outside the organization.</p></div>
+
+<div class="term"><h4><span class="tn">2.</span>Probation</h4>
+<p>You will be on probation for a period of six months from your date of joining. If you are being converted from an Intern/Management Trainee role, your prior engagement period will count towards reducing this probation term. Your continued employment remains subject to satisfactory performance and formal confirmation by the Company, which reserves the right to extend the probation period based on performance or other business considerations.</p></div>
+
+<div class="term"><h4><span class="tn">3.</span>Leave</h4>
+<p>You will be entitled to leaves as per company leave policy.</p></div>
+
+<div class="term"><h4><span class="tn">4.</span>Travel</h4>
+<p>You may be required to undertake travel on company work, and you will be paid travel expenses for this as per the company rules.</p></div>
+
+<div class="term"><h4><span class="tn">5.</span>Notice Period &amp; Termination of Employment</h4>
+<p class="subh">Termination by the Company</p>
+<p>The Company may end employment under the following conditions:</p>
+<p class="subh o">With Cause:</p>
+<p>The Company reserves the right to terminate employment immediately for serious reasons, including but not limited to:</p>
+<ul class="cl">
+<li>Criminal acts involving dishonesty, fraud, theft, or moral misconduct;</li>
+<li>Behaviour that harms the Company’s reputation;</li>
+<li>Persistent failure or refusal to perform assigned duties;</li>
+<li>Gross negligence or intentional misconduct;</li>
+<li>Violation of any key terms in this agreement or company policies;</li>
+<li>Unauthorized absence for three or more consecutive days without approval;</li>
+<li>Providing false or misleading information to the Company.</li></ul>
+<p class="subh o">Without Cause</p>
+<p>If employment is ended without cause, the employee will receive either:</p>
+<p>A <b>60-day notice period</b> before termination, or <b>Severance pay</b> equivalent to 60 days’ basic salary.</p>
+<p>During probation, the notice period is <b>15 days.</b></p>
+<p class="subh">Resignation by the Employee</p>
+<p>If you resign, you must submit a 60-day written notice to ensure a smooth transition. If the notice period is not served, compensation may be required for any losses incurred by the Company due to the short notice.</p></div>
+
+<div class="term"><h4><span class="tn">6.</span>Other Engagements</h4>
+<p>This is a full-time position requiring your exclusive commitment to the company’s business. During your employment, you may not engage in any other paid work (part-time or otherwise), advisory roles, or any direct/indirect involvement in another business (except as a passive shareholder or debenture holder) without prior written approval from the Founder/CEO.</p></div>
+
+<div class="term"><h4><span class="tn">7.</span>Confidentiality of Business Relationships</h4>
+<p>To ensure the confidentiality and integrity of business relationships, the following terms apply during and after your tenure with Peepal Consulting:</p>
+<p class="subh o">a) Client Engagement</p>
+<p>You may not, without prior written consent from Peepal Consulting:</p>
+<p class="roman">(i) For 1 year after exit (if you directly worked with or serviced a client currently or within the past year):</p>
+<ul class="cl"><li>Seek or accept employment, freelance, or consulting opportunities with that client.</li>
+<li>Offer services to them directly or through any entity you are associated with.</li>
+<li>Facilitate business between them and any competitor.</li></ul>
+<p class="roman">(ii) For 3 months after exit (if the client was engaged with Peepal Consulting during your tenure, but you did not directly work with them):</p>
+<ul class="cl"><li>Approach, solicit, or work with the client in any professional capacity.</li></ul>
+<p>Additionally, you are prohibited from using confidential information (e.g., client details, contacts, or trade secrets) to establish direct relationships or solicit business.</p>
+<p class="subh o">b). Employee &amp; Candidate Non-Solicitation</p>
+<p>During employment and for 1 year after exit, you must not:</p>
+<ul class="cl"><li>Persuade, induce, or attempt to hire any Peepal Consulting employee or contractor.</li>
+<li>Approach, engage, or refer candidates who were offered or placed by Peepal Consulting during your tenure for opportunities with competitors or your own ventures.</li>
+<li>Enable or encourage others to do so on your behalf.</li></ul></div>
+
+<div class="term"><h4><span class="tn">8.</span>Confidentiality &amp; Non-Disclosure</h4>
+<p>By working with the company, you will have access to confidential information, including records, documents, reports, plans, and other materials ("Confidential Material"). This information is the property of the Company and/or its clients, provides a competitive advantage, and was obtained or created at significant cost. In exchange for your employment and access to this information, you agree to:</p>
+<ol class="alpha"><li><b>Disclose &amp; Protect Proprietary Information</b> – Any inventions, improvements, systems, or documentation you develop or acquire during your employment ("Proprietary Material") belong solely to the Company. You will not share such Proprietary Material with unauthorized individuals during or after your employment.</li>
+<li><b>No Unauthorized Removal</b> – You will not take Confidential Material from the Company or its clients' premises unless required for work. Upon termination or the Company’s request, you must return all Confidential Material and any other Company property.</li>
+<li><b>Comply with Additional Agreements</b> – You agree to follow any supplementary confidentiality agreements between the Company and its clients, which will become part of this agreement. Proprietary Material remains the Company’s or its clients’ property, regardless of when or how it was acquired.</li></ol></div>
+
+<div class="term"><h4><span class="tn">9.</span>Indemnity</h4>
+<p>You shall indemnify the company against any damages suffered by the company or its clients due to your actions including breach of any terms of this agreement.</p>
+<ol class="alpha"><li>You shall not sign any agreement, contract, or document on behalf of Peepal Consulting, nor make any commitments or obligations binding upon the Company, without obtaining prior written authorization from the MD/CEO. Any unauthorized actions shall be deemed as personal undertakings, for which you shall bear full responsibility and indemnify the Company against all resulting liabilities, claims, or damages. This prohibition includes, but is not limited to, altering company policies, exceeding authorized discretion, or creating financial obligations without express written approval.</li>
+<li>During the period of employment, you agree not to draw, accept or endorse any cheque or bill on behalf of the Company or, in any way, pledge the Company's credit except so far as you may have been authorized by the Company to do so, either generally or in any particular case.</li>
+<li>During the term of your employment, you shall not communicate with the media or with journalists in relation to the Company or its affairs, without obtaining a specific prior written permission.</li></ol></div>
+
+<div class="term"><h4><span class="tn">10.</span>Data Protection Policy</h4>
+<p>You are required to comply with the Data Protection Policy as outlined on Peepal Pulse (central policy repository). Adherence to this policy is mandatory, and any breach may lead to disciplinary action, up to and including termination of employment, as well as legal consequences where applicable.</p>
+<p>For reference, a link to Peepal Pulse will be provided along with this offer letter. You must review and ensure full compliance with the policy at all times.</p></div>
+
+<div class="term"><h4><span class="tn">11.</span>Code of Ethics and Business Conduct</h4>
+<ol class="alpha"><li>When you sign this letter of offer, you are agreeing to thoroughly familiarize yourself with the company’s Code of Ethics and Business Conduct and you are agreeing to abide by it.</li>
+<li>You will not accept gifts, entertainment, or other favors, from persons, or bodies, which the Company has business dealings with, unless you have obtained the previous written permission.</li>
+<li>You will, upon termination of your employment with us, return all property belonging to the client, including without limitation, all Proprietary Information, documents, software, discs, diskettes, tapes, and any other form of media, copies of any of the above, microcomputer systems, computer terminals, modems, other hardware, telephones, credit cards, and/or company automobile.</li>
+<li>You will not report to work, be present on Company premises (including client sites), or perform duties while under the influence of alcohol, unprescribed drugs, or any intoxicating substances.</li>
+<li>You will not consume, distribute, or possess alcohol, narcotics, or illegal substances on Company premises, during working hours, or at Company-sponsored events.</li></ol></div>
+
+<div class="term"><h4><span class="tn">12.</span>Past Record</h4>
+<p>If any declaration given or furnished by you to the company proves to be false, or if you are found to have willfully suppressed any material information, your services are liable to be terminated immediately, without any dues.</p></div>
+
+<div class="term"><h4><span class="tn">13.</span>Governing Law</h4>
+<p>This Agreement shall be governed by, and construed in accordance with, the laws of the Republic of India.</p></div>
+
+<div class="term"><h4><span class="tn">14.</span>Waiver</h4>
+<p>The failure of a party to insist upon strict adherence to any term of this Agreement on any occasion shall not be considered a waiver thereof, or deprive that party of the right thereafter to insist upon strict adherence to that term or any other term of this Agreement.</p></div>
+
+<div class="term"><h4><span class="tn">15.</span>Entire Agreement</h4>
+<p>This Agreement contains the entire agreement of the parties and shall supersede any prior verbal or written agreement or understanding between the Employee and the Company. The Employee acknowledges that in choosing to accept the Company's offer of employment (and/or to continue such employment), he has not relied on any warranties, representations, or promises by the Company, its employees, or any other parties except as specifically set forth herein.</p></div>
+`;
+
+/* ---------- assemble the three sections ---------- */
+function buildSections(){
+  const offerDate=document.getElementById('offerDate').value;
+  const name=document.getElementById('cName').value;
+  const role=document.getElementById('cRole').value;
+  const doj=document.getElementById('cDoj').value;
+  const ctc=parseInt(document.getElementById('cCtc').value||'0',10);
+  const avcOn=document.getElementById('avcToggle').checked;
+  const avcText=document.getElementById('avcText').value||AVC_DEFAULT;
+
+  const page1=`
+    <p class="date-line"><b>Date:</b> ${offerDate?fmtDate(offerDate):'<span class="ph">[Offer Date]</span>'}</p>
+    <div class="title">Offer of <span class="o">Employment</span></div>
+    <div style="height:22px"></div>
+    <p>Dear ${val(name,'Candidate Name')},</p>
+    <p>With reference to your application, and the subsequent interviews you had with us, we are pleased to make this formal offer for the position of <b>${val(role,'Role Title')}</b></p>
+    <p><b>Your official date of joining is ${doj?fmtDate(doj):'<span class="ph">[Date of Joining]</span>'}.</b></p>
+    <p>By accepting this offer, you also express your consent to the company policies - existing as well as the ones created/modified during the course of your employment with us.</p>
+    <p>This offer will lapse if we do not receive your acceptance in writing or by email within 3 days.</p>
+    <p>We are committed to providing you with an exciting and rewarding career and look forward to your valuable contribution to the growth of the company.</p>
+    <table class="sig-tbl p1-sig"><tr>
+      <td><div class="sig-line"></div><div class="sig-nm">Vijay Kumar</div><div class="sig-ti">Founder &amp; CEO</div><div class="sig-ti">Peepal Technology &amp; Management Consulting Pvt Ltd</div></td>
+      <td class="r"><div class="sig-line"></div><div class="sig-nm">Employee Signature</div></td>
+    </tr></table>`;
+
+  const annexA=`
+    <div class="ax-head"><div class="ax-tag">Annexure A</div><h2>Salary Details</h2><div class="rule"></div></div>
+    ${salTable(ctc)}
+    ${perks(ctc)}
+    ${additionalBenefits(avcOn,avcText)}`;
+
+  const annexB = TERMS + sigBlock();
+
+  return {page1, annexA, annexB};
+}
+
+/* ---------- render preview ---------- */
+const FOOT = `<div class="sheet-foot"><div class="frule"></div><div class="fcent">
+  Peepal Technology &amp; Management Consulting Pvt. Ltd.<br>
+  info@peepalconsulting.com &nbsp;|&nbsp; www.peepalconsulting.com<br>
+  2C, Mittal Tower, MG Road, Bangalore 560001 &nbsp;|&nbsp; CIN: U72200KA2005PTC037484
+</div></div>`;
+const HEAD = `<div class="sheet-head"><img src="${LOGO}" alt="Peepal"><div class="hr"></div></div>`;
+
+function sheet(inner){
+  return `<div class="sheet">${HEAD}<div class="sheet-pad"><div class="letter-body">${inner}</div></div>${FOOT}</div>`;
+}
+/* ---------- MANAGEMENT TRAINEE — content from Zeba template ---------- */
+const T_TERMS = [
+  { h: 'Leave', p: 'You will be entitled for leave as per company leave policy.' },
+  { h: 'Other Engagements', p: 'Your position is a whole time employment with the company and you shall devote yourself exclusively to the business of the company. You will not take up any other work for remuneration (part-time or otherwise) or work in advisory capacity or be interested directly or indirectly (except as a shareholder or debenture holder) in any other trade or business during the employment with the company without permission in writing of the Managing Director of the company.' },
+  { h: 'Travel', p: 'You may be required to undertake travel on company work, and you will be paid travel expenses for this as per the company rules.' },
+  { h: 'Confidential Information', p: 'You will not at any time, without the written consent of the Managing Director, disclose or divulge or make public, except on legal obligations, any information regarding the company\u2019s affairs or administration or research carried out whether the same may be confided to you, or become known to you in the course of your service or otherwise.' },
+  { h: 'Entire Agreement', p: 'This Agreement contains the entire agreement of the parties and shall supersede any prior verbal or written agreement or understanding between the Employee and the Company. The Employee acknowledges that in choosing to accept the Company\u2019s offer of employment (and/or to continue such employment), he has not relied on any warranties, representations, or promises by the Company, its employees, or any other parties except as specifically set forth herein.' },
+  { h: 'Governing Law', p: 'This Agreement shall be governed by, and construed in accordance with, the laws of the Republic of India.' }
+];
+function traineeSig(){
+  return `<table class="sig-tbl"><tr>
+    <td><div class="sig-line"></div><div class="sig-nm">Vijay Kumar</div><div class="sig-ti">Founder &amp; CEO</div></td>
+    <td class="r"><div class="sig-line"></div><div class="sig-nm">Employee&rsquo;s Signature</div></td>
+  </tr></table>`;
+}
+function buildTraineeSections(){
+  const dateStr = document.getElementById('tDate').value;
+  const name    = document.getElementById('tName').value;
+  const role    = document.getElementById('tRole').value;
+  const stipend = parseFloat(document.getElementById('tStipend').value || '0');
+  const startD  = document.getElementById('tStart').value;
+  const endD    = document.getElementById('tEnd').value;
+  const doj     = document.getElementById('tDoj').value;
+  const dv = v => v ? fmtDate(v) : '<span class="ph">[Date]</span>';
+  const stipendStr = stipend > 0 ? `Rs. ${stipend.toLocaleString('en-IN')}/-` : '<span class="ph">[Stipend]</span>';
+  const page1 = `
+    <p class="date-line"><b>Date:</b> ${dateStr?fmtDate(dateStr):'<span class="ph">[Letter Date]</span>'}</p>
+    <div class="title">Offer <span class="o">Letter</span></div>
+    <div style="height:22px"></div>
+    <p>Dear ${val(name,'Candidate Name')},</p>
+    <p>Congratulations! With reference to your application and the subsequent interviews you had with us, we are pleased to make this formal written offer for the role of <b>${val(role,'Role Title')}</b> at Peepal Consulting.</p>
+    <p>By accepting the offer you also express your consent to the company policies, existing as well as the ones created/modified during the course of your employment period with us.</p>
+    <p>Your employment period will commence on <b>${dv(startD)}</b> and conclude on <b>${dv(endD)}</b>. Upon successful completion of this tenure, you may be offered a full-time position following a comprehensive evaluation of your performance.</p>
+    <p>During the course of this employment period, you will be entitled for a monthly stipend of <b>${stipendStr}</b>.</p>
+    <p>We commit ourselves to providing you with a challenging and rewarding career and look forward to your valued contribution to the growth of the company, and a mutually rewarding professional relationship.</p>
+    <table class="sig-tbl p1-sig"><tr>
+      <td><div class="sig-line"></div><div class="sig-nm">Vijay Kumar</div><div class="sig-ti">Founder &amp; CEO</div><div class="sig-ti">Peepal Technology &amp; Management Consulting Pvt Ltd</div></td>
+      <td class="r"><div class="sig-line"></div><div class="sig-nm">Employee&rsquo;s Signature</div></td>
+    </tr></table>`;
+  const annexA = `
+    <div class="ax-head"><div class="ax-tag">Annexure A</div><h2>Joining Details</h2><div class="rule"></div></div>
+    <p><b>Date of joining:</b> ${dv(doj)}</p>
+    <p><b>Time of joining:</b> 10.30 AM</p>
+    <p><b>Reporting Office:</b> Peepal Technology &amp; Management Consulting Pvt. Ltd.<br>2C, 2nd Floor, C Wing, Mittal Towers, MG Road, Bangalore 560001.</p>
+    <p style="margin-top:14px">Please bring the following on the day of your joining:</p>
+    <ul class="feat">
+      <li>Photocopies of all mark cards starting from SSLC or equivalent, to Graduation / Post Graduation; Photocopy of degree / master certificate along with the originals for verification.</li>
+      <li>PAN card &amp; Aadhar Card</li>
+    </ul>
+    <p style="margin-top:14px">We look forward to your joining the Traineeship program in our dream team!</p>
+    ${traineeSig()}`;
+  const termsHtml = T_TERMS.map((t, i) =>
+    `<div class="term"><h4><span class="tn">${i+1}.</span>${t.h}</h4><p>${t.p}</p></div>`
+  ).join('');
+  const annexB = `
+    <div class="ax-head"><div class="ax-tag">Annexure B</div><h2>Terms of Employment</h2><div class="rule"></div></div>
+    ${termsHtml}
+    ${traineeSig()}`;
+  return { page1, annexA, annexB };
+}
+
+/* ---------- mode dispatcher: returns an ordered array of section HTML strings ---------- */
+function letterSections(){
+  const mode = document.getElementById('letterType').value;
+  if(mode==='promotion' || mode==='revision'){
+    const s = buildPromotionSections();
+    return [s.page1, s.annexA];
+  }
+  if(mode==='trainee'){
+    const s = buildTraineeSections();
+    return [s.page1, s.annexA, s.annexB];
+  }
+  const s = buildSections();
+  return [s.page1, s.annexA, s.annexB];
+}
+function render(){
+  const secs = letterSections();
+  document.getElementById('doc').innerHTML = secs.map(sheet).join('');
+  // show a live preview of the calculation sheet too (promotion/revision only)
+  const mode = document.getElementById('letterType').value;
+  if(mode==='promotion' || mode==='revision'){
+    document.getElementById('doc').innerHTML += sheet(buildCalcSection());
+  }
+}
+
+/* ---------- pagination guard (unchanged) ---------- */
+function bindHeadings(root){
+  root.querySelectorAll('h4, .subh, .roman, .blk-h').forEach(h=>{
+    h.style.breakAfter='avoid'; h.style.pageBreakAfter='avoid';
+  });
+  root.querySelectorAll('ol.alpha, ul.cl, ol.notes').forEach(list=>{
+    const first=list.firstElementChild;
+    if(first){ first.style.breakBefore='avoid'; first.style.pageBreakBefore='avoid'; }
+  });
+  root.querySelectorAll('ol.alpha > li, ul.cl > li, ol.notes > li').forEach(li=>{
+    li.style.breakInside='avoid'; li.style.pageBreakInside='avoid';
+  });
+  return root;
+}
+
+const RPT_FOOT = `<tfoot><tr><td>
+    <div class="rpt-foot"><div class="frule"></div><div class="fcent">
+      Peepal Technology &amp; Management Consulting Pvt. Ltd.<br>
+      info@peepalconsulting.com &nbsp;|&nbsp; www.peepalconsulting.com<br>
+      2C, Mittal Tower, MG Road, Bangalore 560001 &nbsp;|&nbsp; CIN: U72200KA2005PTC037484
+    </div></div>
+  </td></tr></tfoot>`;
+const RPT_HEAD = `<thead><tr><td>
+    <div class="rpt-head"><img src="${LOGO}" alt="Peepal"><div class="hr"></div></div>
+  </td></tr></thead>`;
+
+/* ==================================================================
+   VECTOR-TEXT PDF GENERATOR (jsPDF direct)
+
+   No html2canvas, no rasterization — every character is real PDF text.
+   Selectable, searchable, resolution-independent.
+
+   Fonts are loaded from ./fonts/ at page load. Expected files:
+     fonts/Georgia.ttf, Georgia-Bold.ttf, Georgia-Italic.ttf, Georgia-BoldItalic.ttf
+     fonts/SegoeUI.ttf, SegoeUI-Bold.ttf, SegoeUI-Italic.ttf, SegoeUI-BoldItalic.ttf
+   If any file 404s, the generator falls back to jsPDF's built-in Times/Helvetica
+   for that style — so local testing without the fonts still produces a PDF.
+   ================================================================== */
+
+const F_SERIF_ACTIVE = { name: 'Georgia',  fallback: 'times' };
+const F_SANS_ACTIVE  = { name: 'Selawik',  fallback: 'helvetica' };
+
+let FONTS_LOADED = false;
+const FONT_MAP = {};  // {'Georgia|normal': true, ...}
+
+async function _loadFontFile(url){
+  try{
+    const res = await fetch(encodeURI(url));
+    if(!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    // convert to base64
+    let bin = '';
+    const bytes = new Uint8Array(buf);
+    const chunk = 0x8000;
+    for(let i=0; i<bytes.length; i+=chunk){
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i+chunk));
+    }
+    return btoa(bin);
+  }catch(e){ return null; }
+}
+
+async function ensureFontsLoaded(pdf){
+  if(FONTS_LOADED) return;
+  const defs = [
+    ['Georgia',  'normal',     'fonts/Georgia.ttf'],
+    ['Georgia',  'bold',       'fonts/Georgia Bold.ttf'],
+    ['Georgia',  'italic',     'fonts/Georgia Italic.ttf'],
+    ['Georgia',  'bolditalic', 'fonts/Georgia Bold Italic.ttf'],
+    ['Selawik',  'normal',     'fonts/selawik.regular.ttf'],
+    ['Selawik',  'bold',       'fonts/selawik.bold.ttf'],
+    /* Selawik has no italic variants — italic sans requests degrade to regular in _resolveFont */
+  ];
+  for(const [family, style, url] of defs){
+    const b64 = await _loadFontFile(url);
+    if(b64){
+      const filename = url.split('/').pop();
+      pdf.addFileToVFS(filename, b64);
+      pdf.addFont(filename, family, style);
+      FONT_MAP[family + '|' + style] = true;
+    }
+  }
+  FONTS_LOADED = true;
+}
+
+function _resolveFont(activeFont, style){
+  // Return { font, style } — style may be adjusted when a requested variant is missing
+  const key = activeFont.name + '|' + style;
+  if(FONT_MAP[key]) return { font: activeFont.name, style };
+  // Graceful degrade: for Selawik (no italic files), drop italic to regular / bold-italic to bold.
+  // Same fallback pattern applies to any custom family that's registered but partial.
+  if(FONT_MAP[activeFont.name + '|normal']){
+    if(style === 'italic')     return { font: activeFont.name, style: 'normal' };
+    if(style === 'bolditalic' && FONT_MAP[activeFont.name + '|bold']) return { font: activeFont.name, style: 'bold' };
+    if(style === 'bold' && FONT_MAP[activeFont.name + '|normal'])     return { font: activeFont.name, style: 'normal' };
+  }
+  return { font: activeFont.fallback, style };
+}
+
+/* Layout constants (mm) */
+const V_M_TOP = 22, V_M_BOT = 22, V_M_LR = 18;
+const V_PAGE_W = 210, V_PAGE_H = 297;
+const V_CONTENT_W = V_PAGE_W - 2 * V_M_LR;
+const V_CONTENT_Y_MAX = V_PAGE_H - V_M_BOT;
+
+/* Colors as [r,g,b] */
+const V_COL = {
+  ink: [26,26,26], orange: [255,133,20], muted: [110,106,99],
+  line: [217,210,198], lineSoft: [236,231,221],
+  cream: [252,250,246], cream2: [251,246,238], white: [255,255,255],
+  ph: [185,177,162], roman: [85,80,74]
+};
+
+/* Renderer state — reset per generatePdf call */
+let V_pdf, V_y;
+
+function _setStyle(activeFont, size, bold, italic, color){
+  const wanted = (bold && italic) ? 'bolditalic' : bold ? 'bold' : italic ? 'italic' : 'normal';
+  const resolved = _resolveFont(activeFont, wanted);
+  V_pdf.setFont(resolved.font, resolved.style);
+  V_pdf.setFontSize(size);
+  V_pdf.setTextColor(color[0], color[1], color[2]);
+}
+
+function _measureRun(r){
+  _setStyle(r.font, r.size, r.bold, r.italic, r.color);
+  return V_pdf.getTextWidth(r.text);
+}
+
+function _newPageIfNeeded(needed){
+  if(V_y + needed > V_CONTENT_Y_MAX){
+    V_pdf.addPage();
+    V_y = V_M_TOP;
+  }
+}
+
+function _newSection(){
+  if(V_y > V_M_TOP + 0.5){
+    V_pdf.addPage();
+    V_y = V_M_TOP;
+  }
+}
+
+/* Split runs into wrapped lines that fit within maxW mm */
+function _wrapRuns(runs, maxW){
+  const words = [];
+  for(const r of runs){
+    if(r.text === '') continue;
+    const parts = r.text.split(/(\s+)/);
+    for(const p of parts){
+      if(p) words.push({...r, text: p, isSpace: /^\s+$/.test(p)});
+    }
+  }
+  const lines = [];
+  let curLine = [], curW = 0;
+  for(const w of words){
+    const ww = _measureRun(w);
+    if(curW + ww > maxW && curLine.length > 0){
+      while(curLine.length && curLine[curLine.length-1].isSpace){
+        curW -= _measureRun(curLine.pop());
+      }
+      lines.push(curLine);
+      curLine = []; curW = 0;
+      if(w.isSpace) continue;
+    }
+    curLine.push(w);
+    curW += ww;
+  }
+  if(curLine.length){
+    while(curLine.length && curLine[curLine.length-1].isSpace) curLine.pop();
+    lines.push(curLine);
+  }
+  return lines;
+}
+
+/* Draw a single already-wrapped line of runs starting at (x, current y) */
+function _drawLine(runs, x, maxW, align){
+  const totalW = runs.reduce((s,r) => s + _measureRun(r), 0);
+  let startX = x;
+  if(align === 'right')  startX = x + maxW - totalW;
+  if(align === 'center') startX = x + (maxW - totalW) / 2;
+
+  const maxSize = Math.max(...runs.map(r => r.size));
+  const lineH = maxSize * 0.352 * 1.35;   // 1pt ≈ 0.352mm, 1.35x line spacing
+  _newPageIfNeeded(lineH);
+
+  const baseline = V_y + maxSize * 0.352 * 0.9;
+  let cx = startX;
+  for(const r of runs){
+    _setStyle(r.font, r.size, r.bold, r.italic, r.color);
+    V_pdf.text(r.text, cx, baseline);
+    cx += V_pdf.getTextWidth(r.text);
+  }
+  V_y += lineH;
+}
+
+function drawPara(runs, opts={}){
+  if(!runs.length) return;
+  const indent = opts.indent || 0;
+  const x = opts.x !== undefined ? opts.x : V_M_LR + indent;
+  const maxW = opts.maxW !== undefined ? opts.maxW : V_CONTENT_W - indent;
+  const lines = _wrapRuns(runs, maxW);
+  // conf: draw cream background behind whole paragraph
+  if(opts.confBg){
+    const totalH = lines.length * (Math.max(...runs.map(r=>r.size)) * 0.352 * 1.35);
+    V_pdf.setFillColor(...V_COL.cream);
+    V_pdf.rect(x - 2, V_y - 1, maxW + 4, totalH + 2, 'F');
+    V_pdf.setDrawColor(...V_COL.orange);
+    V_pdf.setLineWidth(0.8);
+    V_pdf.line(x - 2, V_y - 1, x - 2, V_y + totalH + 1);
+  }
+  for(const line of lines){
+    _drawLine(line, x, maxW, opts.align);
+  }
+  if(opts.spacingAfter) V_y += opts.spacingAfter;
+}
+
+/* Convert HTML element into flat runs preserving inline styles */
+function _elToRuns(el, baseStyle){
+  const runs = [];
+  for(const node of el.childNodes){
+    if(node.nodeType === Node.TEXT_NODE){
+      if(node.textContent) runs.push({...baseStyle, text: node.textContent});
+    } else if(node.nodeType === Node.ELEMENT_NODE){
+      const tag = node.tagName, cls = (node.className || '').split(/\s+/);
+      const s = {...baseStyle};
+      if(tag === 'B' || tag === 'STRONG') s.bold = true;
+      if(tag === 'I' || tag === 'EM')      s.italic = true;
+      if(tag === 'SPAN' && cls.includes('o'))  s.color = V_COL.orange;
+      if(tag === 'SPAN' && cls.includes('ph')){ s.italic = true; s.color = V_COL.ph; }
+      if(tag === 'SMALL'){ s.size = Math.max((s.size || 10) - 2, 7); s.color = s.color || V_COL.muted; }
+      if(tag === 'BR'){ runs.push({...baseStyle, text: ' ', isBreak: true}); continue; }
+      if(tag === 'SUP'){
+        /* jsPDF has no true superscript — render smaller + raise baseline via a special run */
+        const supStyle = {...s, size: Math.max((s.size||10) - 3, 6), sup: true};
+        runs.push(..._elToRuns(node, supStyle));
+        continue;
+      }
+      runs.push(..._elToRuns(node, s));
+    }
+  }
+  return runs;
+}
+
+/* Element handlers */
+function _handleElement(el, ctx){
+  if(el.nodeType !== Node.ELEMENT_NODE) return;
+  const tag = el.tagName, cls = (el.className || '');
+
+  if(tag === 'P'){
+    const isDate  = cls.includes('date-line');
+    const isSubh  = cls.includes('subh');
+    const isRoman = cls.includes('roman');
+    const isConf  = cls.includes('conf');
+    const isSubhO = isSubh && cls.split(/\s+/).includes('o');
+    const base = {
+      font:  isSubh ? F_SANS_ACTIVE : F_SERIF_ACTIVE,
+      size:  10.5,
+      bold:  isSubh,
+      italic: isRoman,
+      color: isSubhO ? V_COL.orange : (isRoman ? V_COL.roman : V_COL.ink)
+    };
+    const runs = _elToRuns(el, base);
+    const indent = isSubh ? 7 : isRoman ? 12 : (ctx.termChild ? 7 : 0);
+    drawPara(runs, {
+      indent,
+      align: isDate ? 'right' : 'left',
+      spacingAfter: 3,
+      confBg: isConf
+    });
+  }
+  else if(tag === 'DIV'){
+    if(cls.includes('title')){
+      const runs = _elToRuns(el, {font: F_SANS_ACTIVE, size: 22, bold: true, color: V_COL.ink});
+      drawPara(runs, {spacingAfter: 6});
+    }
+    else if(cls.includes('ax-head')){
+      const tagEl = el.querySelector('.ax-tag');
+      const h2 = el.querySelector('h2');
+      if(tagEl) drawPara([{font: F_SANS_ACTIVE, size: 8, bold: true, color: V_COL.orange, text: tagEl.textContent.toUpperCase()}], {spacingAfter: 1});
+      if(h2){
+        drawPara([{font: F_SANS_ACTIVE, size: 16, bold: true, color: V_COL.ink, text: h2.textContent}], {spacingAfter: 1});
+        V_pdf.setDrawColor(...V_COL.ink);
+        V_pdf.setLineWidth(0.6);
+        V_pdf.line(V_M_LR, V_y, V_M_LR + V_CONTENT_W, V_y);
+        V_y += 4;
+      }
+    }
+    else if(cls.includes('perks')){
+      _drawPerksStrip(el);
+    }
+    else if(cls.includes('term')){
+      for(const child of el.children){
+        _handleElement(child, {termChild: true});
+      }
+      V_y += 3;
+    }
+    else if(cls.includes('blk-rule') || cls.includes('rule')){
+      /* skip decorative rules */
+    }
+    else {
+      for(const child of el.children) _handleElement(child, ctx);
+    }
+  }
+  else if(tag === 'H2' || tag === 'H3' || tag === 'H4'){
+    const isBlk = cls.includes('blk-h');
+    const tn = el.querySelector('.tn');
+    if(tn){
+      const rest = el.textContent.replace(tn.textContent, '').trim();
+      drawPara([
+        {font: F_SANS_ACTIVE, size: 11, bold: true, color: V_COL.orange, text: tn.textContent + '  '},
+        {font: F_SANS_ACTIVE, size: 11, bold: true, color: V_COL.ink,    text: rest}
+      ], {spacingAfter: 2});
+    } else {
+      drawPara([{font: F_SANS_ACTIVE, size: isBlk ? 11 : 13, bold: true, color: V_COL.ink, text: el.textContent}], {spacingAfter: 2});
+      if(isBlk){
+        V_pdf.setDrawColor(...V_COL.orange);
+        V_pdf.setLineWidth(0.7);
+        V_pdf.line(V_M_LR, V_y - 1, V_M_LR + 12, V_y - 1);
+        V_y += 1;
+      }
+    }
+  }
+  else if(tag === 'TABLE'){
+    if(cls.includes('sig-tbl')) _drawSigTable(el, cls);
+    else _drawGenericTable(el);
+  }
+  else if(tag === 'UL' || tag === 'OL'){
+    _drawList(el, ctx);
+  }
+  else {
+    for(const child of el.children) _handleElement(child, ctx);
+  }
+}
+
+function _drawList(el, ctx){
+  const isNumbered = el.tagName === 'OL';
+  const cls = el.className || '';
+  const isAlpha = cls.includes('alpha');
+  const isFeat  = cls.includes('feat');
+  const isCl    = cls.includes('cl');
+  const items = el.querySelectorAll(':scope > li');
+  const baseIndent = ctx.termChild ? 10 : 4;
+  const markerColor = (isAlpha || isFeat || isCl) ? V_COL.orange : V_COL.ink;
+
+  items.forEach((li, idx) => {
+    let marker;
+    if(isAlpha) marker = String.fromCharCode(97+idx) + ')';
+    else if(isNumbered) marker = (idx+1) + '.';
+    else marker = '•';
+
+    // Extract runs from li excluding nested lists
+    const liClone = li.cloneNode(true);
+    liClone.querySelectorAll('ul, ol').forEach(n => n.remove());
+    const bodyRuns = _elToRuns(liClone, {font: F_SERIF_ACTIVE, size: 10.5, color: V_COL.ink});
+
+    drawPara([
+      {font: F_SANS_ACTIVE, size: 10, bold: true, color: markerColor, text: marker + '  '},
+      ...bodyRuns
+    ], {x: V_M_LR + baseIndent, maxW: V_CONTENT_W - baseIndent, spacingAfter: 2});
+
+    // Nested lists
+    li.querySelectorAll(':scope > ul, :scope > ol').forEach(nested => {
+      nested.querySelectorAll(':scope > li').forEach(sli => {
+        const sliClone = sli.cloneNode(true);
+        sliClone.querySelectorAll('ul, ol').forEach(n => n.remove());
+        const subRuns = _elToRuns(sliClone, {font: F_SERIF_ACTIVE, size: 10.5, color: V_COL.ink});
+        drawPara([
+          {font: F_SANS_ACTIVE, size: 10, bold: true, color: V_COL.orange, text: '•  '},
+          ...subRuns
+        ], {x: V_M_LR + baseIndent + 6, maxW: V_CONTENT_W - baseIndent - 6, spacingAfter: 1});
+      });
+    });
+  });
+  V_y += 2;
+}
+
+function _drawGenericTable(el){
+  const rows = [];
+  el.querySelectorAll('tr').forEach(tr => {
+    const cells = [];
+    tr.querySelectorAll('td, th').forEach(td => {
+      const trCls = tr.className || '';
+      cells.push({
+        text: td.textContent.trim().replace(/\s+/g,' '),
+        colspan: td.colSpan || 1,
+        isHeader: td.tagName === 'TH',
+        isPart:   trCls.includes('part') || trCls.includes('sec'),
+        isSum:    trCls.includes('sum')  || trCls.includes('tot'),
+        isGrand:  trCls.includes('grand'),
+        isAmt:    (td.className || '').includes('amt'),
+        isNote:   (td.className || '').includes('note'),
+        isLab:    (td.className || '').includes('lab')
+      });
+    });
+    if(cells.length) rows.push(cells);
+  });
+  if(!rows.length) return;
+
+  /* infer column widths from first non-spanning row */
+  const ncols = Math.max(...rows.map(r => r.reduce((s,c) => s + c.colspan, 0)));
+  let colW;
+  if(ncols === 3)      colW = [V_CONTENT_W*0.55, V_CONTENT_W*0.225, V_CONTENT_W*0.225];
+  else if(ncols === 2) colW = [V_CONTENT_W*0.60, V_CONTENT_W*0.40];
+  else                 colW = new Array(ncols).fill(V_CONTENT_W / ncols);
+
+  const rowH = 5.5;
+  const cellPad = 1.8;
+
+  for(const row of rows){
+    _newPageIfNeeded(rowH);
+    /* row background */
+    if(row[0].isPart || row[0].isSum || row[0].isGrand){
+      const fill = row[0].isGrand ? V_COL.ink : row[0].isSum ? V_COL.cream : V_COL.cream2;
+      V_pdf.setFillColor(...fill);
+      V_pdf.rect(V_M_LR, V_y, V_CONTENT_W, rowH, 'F');
+    }
+    let colIdx = 0, cx = V_M_LR;
+    for(const cell of row){
+      const spanW = cell.colspan >= ncols ? V_CONTENT_W : colW.slice(colIdx, colIdx + cell.colspan).reduce((a,b)=>a+b, 0);
+      let color = V_COL.ink;
+      let size = 9;
+      let bold = false;
+      let font = F_SANS_ACTIVE;
+
+      if(cell.isHeader){ color = V_COL.muted; size = 7; bold = true; }
+      else if(cell.isPart){ color = V_COL.orange; size = 7; bold = true; }
+      else if(cell.isSum){ bold = true; }
+      else if(cell.isGrand){ color = V_COL.white; bold = true; }
+      if(cell.isLab) font = F_SANS_ACTIVE;
+
+      _setStyle(font, size, bold, false, color);
+      const textX = cell.isAmt ? (cx + spanW - cellPad) : (cx + cellPad);
+      const baseline = V_y + rowH/2 + size * 0.352 * 0.35;
+      V_pdf.text(cell.text, textX, baseline, {align: cell.isAmt ? 'right' : 'left'});
+
+      cx += spanW;
+      colIdx += cell.colspan;
+    }
+    /* row border */
+    V_pdf.setDrawColor(...(row[0].isSum || row[0].isGrand ? V_COL.ink : V_COL.lineSoft));
+    V_pdf.setLineWidth(row[0].isSum || row[0].isGrand ? 0.3 : 0.15);
+    V_pdf.line(V_M_LR, V_y + rowH, V_M_LR + V_CONTENT_W, V_y + rowH);
+    V_y += rowH;
+  }
+  V_y += 3;
+}
+
+function _drawPerksStrip(el){
+  const cols = el.querySelectorAll(':scope > .pc');
+  if(!cols.length) return;
+  const n = cols.length;
+  const colW = V_CONTENT_W / n;
+  const startY = V_y;
+
+  /* two-pass: first measure heights, then draw with full-height column bg */
+  const colContents = [];
+  cols.forEach(pc => {
+    const rows = [];
+    const pk = pc.querySelector('.pk');
+    if(pk) rows.push({type:'pk', text: pk.textContent});
+    pc.querySelectorAll('.pr').forEach(pr => {
+      const lbl = pr.querySelector('.lbl'); const val = pr.querySelector('.val');
+      if(lbl && val) rows.push({type:'pr', lbl: lbl.textContent.trim(), val: val.textContent.trim()});
+    });
+    colContents.push(rows);
+  });
+  const maxRows = Math.max(...colContents.map(r => r.length));
+  const stripH = 5 + maxRows * 4;
+  _newPageIfNeeded(stripH + 2);
+
+  /* background box + column separators */
+  V_pdf.setFillColor(...V_COL.cream);
+  V_pdf.rect(V_M_LR, startY, V_CONTENT_W, stripH, 'F');
+  V_pdf.setDrawColor(...V_COL.line);
+  V_pdf.setLineWidth(0.2);
+  V_pdf.rect(V_M_LR, startY, V_CONTENT_W, stripH);
+  for(let i=1; i<n; i++){
+    V_pdf.setDrawColor(...V_COL.lineSoft);
+    V_pdf.line(V_M_LR + i*colW, startY, V_M_LR + i*colW, startY + stripH);
+  }
+
+  colContents.forEach((rows, i) => {
+    const cx = V_M_LR + i * colW;
+    let cy = startY + 3.5;
+    for(const r of rows){
+      if(r.type === 'pk'){
+        _setStyle(F_SANS_ACTIVE, 6.5, true, false, V_COL.orange);
+        V_pdf.text(r.text, cx + 3, cy);
+        cy += 3.5;
+      } else {
+        _setStyle(F_SERIF_ACTIVE, 8, false, false, V_COL.muted);
+        V_pdf.text(r.lbl, cx + 3, cy);
+        _setStyle(F_SANS_ACTIVE, 8, true, false, V_COL.ink);
+        V_pdf.text(r.val, cx + colW - 3, cy, {align: 'right'});
+        cy += 4;
+      }
+    }
+  });
+  V_y = startY + stripH + 4;
+}
+
+function _drawSigTable(el, cls){
+  /* Extra vertical spacing before signature block */
+  const extra = cls.includes('p1-sig') ? 55 : 8;
+  V_y += extra;
+  _newPageIfNeeded(20);
+  const startY = V_y;
+  const cells = el.querySelectorAll('td');
+  const cellW = V_CONTENT_W / Math.max(cells.length, 2);
+
+  cells.forEach((td, i) => {
+    const cx = V_M_LR + i * cellW;
+    V_pdf.setDrawColor(...V_COL.ink);
+    V_pdf.setLineWidth(0.3);
+    V_pdf.line(cx, startY, cx + cellW - 10, startY);
+    const nm = td.querySelector('.sig-nm');
+    const ti = td.querySelector('.sig-ti');
+    let cy = startY + 4;
+    if(nm){
+      _setStyle(F_SANS_ACTIVE, 10, true, false, V_COL.ink);
+      V_pdf.text(nm.textContent, cx, cy);
+      cy += 4;
+    }
+    if(ti){
+      _setStyle(F_SERIF_ACTIVE, 9, false, false, V_COL.muted);
+      V_pdf.text(ti.textContent, cx, cy);
+    }
+  });
+  V_y = startY + 15;
+}
+
+/* Stamp Peepal header (logo + hairline) + footer on every page */
+function _stampHeaderFooter(){
+  const total = V_pdf.internal.getNumberOfPages();
+  let logoW = 22, logoH = 9;
+  try { const p = V_pdf.getImageProperties(LOGO); logoW = 9 * p.width / p.height; logoH = 9; } catch(e){}
+  for(let p = 1; p <= total; p++){
+    V_pdf.setPage(p);
+    try{ V_pdf.addImage(LOGO, 'PNG', V_M_LR, 8, logoW, logoH, undefined, 'FAST'); }catch(e){}
+    V_pdf.setDrawColor(...V_COL.lineSoft); V_pdf.setLineWidth(0.2);
+    V_pdf.line(V_M_LR + logoW + 4, 8 + logoH/2, V_PAGE_W - V_M_LR, 8 + logoH/2);
+    V_pdf.line(V_M_LR, V_PAGE_H - 18, V_PAGE_W - V_M_LR, V_PAGE_H - 18);
+    _setStyle(F_SANS_ACTIVE, 7.5, false, false, V_COL.muted);
+    V_pdf.text('Peepal Technology & Management Consulting Pvt. Ltd.', V_PAGE_W/2, V_PAGE_H - 14, {align:'center'});
+    V_pdf.text('info@peepalconsulting.com  |  www.peepalconsulting.com', V_PAGE_W/2, V_PAGE_H - 11, {align:'center'});
+    V_pdf.text('2C, Mittal Tower, MG Road, Bangalore 560001  |  CIN: U72200KA2005PTC037484', V_PAGE_W/2, V_PAGE_H - 8, {align:'center'});
+  }
+}
+
+async function generatePdf(secs, filename){
+  if(!(window.jspdf && window.jspdf.jsPDF)){
+    alert('PDF library did not load. Check your internet connection and retry.');
+    return;
+  }
+  const { jsPDF } = window.jspdf;
+  V_pdf = new jsPDF({unit:'mm', format:'a4', orientation:'portrait', compress:true});
+  V_y = V_M_TOP;
+
+  await ensureFontsLoaded(V_pdf);
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(255,255,255,0.96);z-index:2147483000;display:flex;align-items:center;justify-content:center;font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-size:15px;color:#333;letter-spacing:.02em';
+  overlay.textContent = 'Generating PDF…';
+  document.body.appendChild(overlay);
+
+  try {
+    for(let i = 0; i < secs.length; i++){
+      if(i > 0) _newSection();
+      const container = document.createElement('div');
+      container.innerHTML = secs[i];
+      for(const child of container.children){
+        _handleElement(child, {});
+      }
+    }
+    _stampHeaderFooter();
+    V_pdf.save(filename);
+  } catch(err){
+    console.error('PDF generation error:', err);
+    alert('PDF generation failed: ' + (err.message || err));
+  } finally { overlay.remove(); }
+}
+
+document.getElementById('dlPdf').addEventListener('click', async ()=>{
+  const btn = document.getElementById('dlPdf'); const lbl = document.getElementById('dlPdfLabel');
+  const orig = lbl.textContent; lbl.textContent = 'Generating…'; btn.disabled = true;
+  try { await generatePdf(letterSections(), docFileName('pdf')); }
+  finally { lbl.textContent = orig; btn.disabled = false; }
+});
+const dlCalcPdfBtn = document.getElementById('dlCalcPdf');
+if(dlCalcPdfBtn) dlCalcPdfBtn.addEventListener('click', async ()=>{
+  dlCalcPdfBtn.disabled = true;
+  try { await generatePdf([buildCalcSection()], calcFileName('pdf')); }
+  finally { dlCalcPdfBtn.disabled = false; }
+});
+
+
+/* ---------- WORD (.docx via docx library — real Open XML) ---------- */
+async function generateDocx(secs, filename){
+  const dx = window.docx;
+  if(!dx || !dx.Document){ alert('DOCX library did not load. Check your internet connection and retry.'); return; }
+  const { Document, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun,
+          Header, Footer, HeadingLevel, AlignmentType, WidthType, BorderStyle,
+          PageOrientation, PageBreak, Packer } = dx;
+  const ORANGE='FF8514', INK='1A1A1A', MUTED='6E6A63', LINE='D9D2C6', LINE_SOFT='ECE7DD', CREAM='FCFAF6', CREAM2='FBF6EE';
+  const SERIF='Georgia', SANS='Segoe UI';
+  const BORDER_LS = { style: BorderStyle.SINGLE, size: 4, color: LINE_SOFT };
+  const BORDER_INK = { style: BorderStyle.SINGLE, size: 6, color: INK };
+  const BORDER_NONE = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+  function parseHtml(html){ const c=document.createElement('div'); c.innerHTML=html; return c; }
+  function inlines(node, base={}){
+    const out = [];
+    for(const child of node.childNodes){
+      if(child.nodeType === Node.TEXT_NODE){ if(child.textContent) out.push(new TextRun({ ...base, text: child.textContent })); }
+      else if(child.nodeType === Node.ELEMENT_NODE){
+        const tag = child.tagName, cls = child.className || '';
+        if(tag === 'BR'){ out.push(new TextRun({ ...base, text:'', break:1 })); continue; }
+        const r = {...base};
+        if(tag === 'B' || tag === 'STRONG') r.bold = true;
+        if(tag === 'I' || tag === 'EM') r.italics = true;
+        if(tag === 'SUP') r.superScript = true;
+        if(tag === 'SUB') r.subScript = true;
+        if(tag === 'SPAN' && cls.split(/\s+/).includes('o')) r.color = ORANGE;
+        if(tag === 'SPAN' && cls.split(/\s+/).includes('ph')){ r.italics = true; r.color = 'B9B1A2'; }
+        if(tag === 'SMALL'){ r.size = Math.max((r.size||21) - 4, 14); r.color = r.color || MUTED; }
+        out.push(...inlines(child, r));
+      }
+    }
+    return out;
+  }
+  function tableFrom(el){
+    const rows = [];
+    el.querySelectorAll('tr').forEach(tr => {
+      const cells = [];
+      tr.querySelectorAll('td, th').forEach(td => {
+        const isHeader = td.tagName === 'TH';
+        const trCls = tr.className || '';
+        const isPart = trCls.includes('part') || trCls.includes('sec');
+        const isSum = trCls.includes('sum') || trCls.includes('tot');
+        const isGrand = trCls.includes('grand');
+        const isAmt = (td.className||'').includes('amt');
+        const runOpts = { font: SANS, size: 19 };
+        if(isHeader){ runOpts.bold = true; runOpts.color = MUTED; runOpts.size = 14; }
+        if(isPart){ runOpts.bold = true; runOpts.color = ORANGE; runOpts.size = 14; }
+        if(isSum) runOpts.bold = true;
+        if(isGrand){ runOpts.bold = true; runOpts.color = 'FFFFFF'; }
+        if(!isHeader && !isPart && !isSum && !isGrand) runOpts.color = INK;
+        const runs = inlines(td, runOpts);
+        if(runs.length === 0) runs.push(new TextRun({ ...runOpts, text:'' }));
+        cells.push(new TableCell({
+          children: [new Paragraph({ children: runs, alignment: isAmt ? AlignmentType.RIGHT : AlignmentType.LEFT, spacing:{before:30,after:30} })],
+          shading: isGrand ? { fill: INK } : ((isPart||isSum) ? { fill: CREAM2 } : undefined),
+          margins: { top: 60, bottom: 60, left: 120, right: 120 },
+          borders: { top: isSum||isGrand ? BORDER_INK : BORDER_LS, bottom: isSum||isGrand ? BORDER_INK : BORDER_LS, left: BORDER_NONE, right: BORDER_NONE },
+          columnSpan: td.colSpan || 1
+        }));
+      });
+      rows.push(new TableRow({ children: cells }));
+    });
+    return new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE } });
+  }
+  function perksTableFrom(perksEl){
+    const cols = perksEl.querySelectorAll(':scope > .pc');
+    if(!cols.length) return null;
+    const tableCells = [];
+    cols.forEach(pc => {
+      const paras = [];
+      const pk = pc.querySelector('.pk');
+      if(pk) paras.push(new Paragraph({ children: [new TextRun({ text: pk.textContent, font: SANS, size: 14, bold: true, color: ORANGE })], spacing:{after:80} }));
+      pc.querySelectorAll('.pr').forEach(pr => {
+        const lbl = pr.querySelector('.lbl'), val = pr.querySelector('.val');
+        if(lbl && val){
+          paras.push(new Paragraph({ children: [
+            new TextRun({ text: lbl.textContent.trim(), font: SERIF, size: 17, color: MUTED }),
+            new TextRun({ text: '  ' + val.textContent.trim(), font: SANS, size: 17, bold: true, color: INK })
+          ], spacing:{after:40} }));
+        }
+      });
+      tableCells.push(new TableCell({
+        children: paras.length ? paras : [new Paragraph({ children:[new TextRun({text:''})] })],
+        shading: { fill: CREAM },
+        margins: { top: 120, bottom: 120, left: 140, right: 140 },
+        borders: { top: {style:BorderStyle.SINGLE,size:4,color:LINE}, bottom: {style:BorderStyle.SINGLE,size:4,color:LINE}, left: BORDER_LS, right: BORDER_LS }
+      }));
+    });
+    return new Table({ rows: [new TableRow({ children: tableCells })], width: { size: 100, type: WidthType.PERCENTAGE } });
+  }
+  function convertSection(html){
+    const container = parseHtml(html);
+    const out = [];
+    walk(container, out, {});
+    return out;
+  }
+  function walk(node, out, ctx){
+    for(const child of node.childNodes){
+      if(child.nodeType === Node.TEXT_NODE){
+        const t = child.textContent;
+        if(t && t.trim()) out.push(new Paragraph({ children: [new TextRun({ text: t, font: SERIF, size: 21, color: INK })] }));
+        continue;
+      }
+      if(child.nodeType !== Node.ELEMENT_NODE) continue;
+      const tag = child.tagName; const cls = child.className || '';
+      if(tag === 'P'){
+        const isDate = cls.includes('date-line'); const isSubh = cls.includes('subh'); const isRoman = cls.includes('roman'); const isConf = cls.includes('conf');
+        const base = { font: isSubh ? SANS : SERIF, size: 21, bold: isSubh, italics: isRoman, color: isSubh && cls.includes(' o') ? ORANGE : (isRoman ? '55504A' : INK) };
+        const runs = inlines(child, base);
+        if(!runs.length) continue;
+        const indent = isSubh ? { left: 450 } : isRoman ? { left: 720 } : (ctx.termChild ? { left: 450 } : undefined);
+        out.push(new Paragraph({ children: runs, alignment: isDate ? AlignmentType.RIGHT : AlignmentType.LEFT, spacing: { after: isConf ? 120 : 160 }, indent, shading: isConf ? { fill: CREAM } : undefined }));
+      } else if(tag === 'DIV'){
+        if(cls.includes('title')){
+          out.push(new Paragraph({ children: inlines(child, { font: SANS, size: 44, bold: true, color: INK }), spacing:{before:200,after:200} }));
+        } else if(cls.includes('ax-head')){
+          const tag_ = child.querySelector('.ax-tag'); const h2 = child.querySelector('h2');
+          if(tag_) out.push(new Paragraph({ children:[new TextRun({ text: tag_.textContent.toUpperCase(), font: SANS, size: 16, bold: true, color: ORANGE })], spacing:{after:60} }));
+          if(h2) out.push(new Paragraph({ children:[new TextRun({ text: h2.textContent, font: SANS, size: 32, bold: true, color: INK })], spacing:{after:140}, border: { bottom: {style:BorderStyle.SINGLE, size:12, color:INK, space:4} } }));
+        } else if(cls.includes('perks')){
+          const t = perksTableFrom(child); if(t) out.push(t);
+          out.push(new Paragraph({ children:[new TextRun({text:''})], spacing:{after:80} }));
+        } else if(cls.includes('conf')){
+          out.push(new Paragraph({ children: inlines(child, { font: SERIF, size: 21, color: INK }), spacing:{before:120,after:120}, indent:{left:500,right:200}, shading:{fill:CREAM} }));
+        } else if(cls.includes('term')){
+          walk(child, out, { termChild: true });
+        } else if(cls.includes('blk-rule') || cls.includes('rule')){ /* skip */ }
+        else { walk(child, out, ctx); }
+      } else if(tag === 'H2' || tag === 'H3' || tag === 'H4'){
+        const isBlk = cls.includes('blk-h'); const tn = child.querySelector('.tn');
+        let runs;
+        if(tn){
+          const rest = child.textContent.replace(tn.textContent,'').trim();
+          runs = [ new TextRun({ text: tn.textContent + '  ', font: SANS, size: 22, bold: true, color: ORANGE }), new TextRun({ text: rest, font: SANS, size: 22, bold: true, color: INK }) ];
+        } else { runs = inlines(child, { font: SANS, size: isBlk ? 22 : 26, bold: true, color: INK }); }
+        out.push(new Paragraph({ children: runs, spacing:{before:200,after:100}, heading: tag === 'H2' ? HeadingLevel.HEADING_2 : tag === 'H3' ? HeadingLevel.HEADING_3 : HeadingLevel.HEADING_4 }));
+      } else if(tag === 'TABLE'){
+        const cls2 = child.className || '';
+        if(cls2.includes('sig-tbl')){
+          out.push(new Paragraph({ children:[new TextRun({text:''})], spacing:{before: cls2.includes('p1-sig') ? 1600 : 400, after:80} }));
+          const sigCells = [];
+          child.querySelectorAll('td').forEach(td => {
+            const nm = td.querySelector('.sig-nm'); const ti = td.querySelector('.sig-ti');
+            const inner = [
+              new Paragraph({ children:[new TextRun({ text:'', font: SERIF, size: 21 })], border: { bottom: {style:BorderStyle.SINGLE, size:6, color: INK, space:2} }, spacing:{after:80} }),
+              nm ? new Paragraph({ children:[new TextRun({ text: nm.textContent, font: SANS, size: 20, bold: true, color: INK })] }) : null,
+              ti ? new Paragraph({ children:[new TextRun({ text: ti.textContent, font: SERIF, size: 18, color: MUTED })] }) : null
+            ].filter(Boolean);
+            sigCells.push(new TableCell({ children: inner, borders: {top:BORDER_NONE,bottom:BORDER_NONE,left:BORDER_NONE,right:BORDER_NONE}, margins:{top:80,bottom:80,left:100,right:100} }));
+          });
+          out.push(new Table({ rows: [new TableRow({ children: sigCells })], width:{size:100,type:WidthType.PERCENTAGE} }));
+        } else {
+          out.push(tableFrom(child));
+          out.push(new Paragraph({ children:[new TextRun({text:''})], spacing:{after:80} }));
+        }
+      } else if(tag === 'UL' || tag === 'OL'){
+        const isNumbered = tag === 'OL'; const isAlpha = cls.includes('alpha'); const isFeat = cls.includes('feat'); const isCl = cls.includes('cl');
+        child.querySelectorAll(':scope > li').forEach((li, idx) => {
+          let marker;
+          if(isAlpha) marker = String.fromCharCode(97+idx) + ')';
+          else if(isNumbered) marker = (idx+1) + '.';
+          else marker = '•';
+          const markerColor = (isAlpha || isFeat || isCl) ? ORANGE : INK;
+          const baseIndent = ctx.termChild ? 700 : 500;
+          const runs = [ new TextRun({ text: marker + '  ', font: SANS, size: 20, bold: true, color: markerColor }), ...inlines(li, { font: SERIF, size: 21, color: INK }) ];
+          out.push(new Paragraph({ children: runs, indent:{left:baseIndent,hanging:300}, spacing:{after:80} }));
+          li.querySelectorAll(':scope > ul, :scope > ol').forEach(nested => {
+            nested.querySelectorAll(':scope > li').forEach(sli => {
+              out.push(new Paragraph({ children: [ new TextRun({ text:'•  ', font: SANS, size: 20, bold: true, color: ORANGE }), ...inlines(sli, { font: SERIF, size: 21, color: INK }) ], indent:{left:baseIndent+400,hanging:300}, spacing:{after:60} }));
+            });
+          });
+        });
+      } else { walk(child, out, ctx); }
+    }
+  }
+  let logoBytes = null;
+  try { logoBytes = await fetch(LOGO).then(r => r.arrayBuffer()); } catch(e){ console.warn('logo fetch failed', e); }
+  const children = [];
+  for(let i = 0; i < secs.length; i++){
+    if(i > 0) children.push(new Paragraph({ children: [new PageBreak()] }));
+    children.push(...convertSection(secs[i]));
+  }
+  const header = new Header({ children: [new Paragraph({ children: logoBytes ? [new ImageRun({ data: logoBytes, transformation: { width: 90, height: 32 } })] : [] })] });
+  const footer = new Footer({ children: [
+    new Paragraph({ alignment: AlignmentType.CENTER, children:[new TextRun({ text: 'Peepal Technology & Management Consulting Pvt. Ltd.', font: SANS, size: 14, color: MUTED })] }),
+    new Paragraph({ alignment: AlignmentType.CENTER, children:[new TextRun({ text: 'info@peepalconsulting.com  |  www.peepalconsulting.com',  font: SANS, size: 14, color: MUTED })] }),
+    new Paragraph({ alignment: AlignmentType.CENTER, children:[new TextRun({ text: '2C, Mittal Tower, MG Road, Bangalore 560001  |  CIN: U72200KA2005PTC037484', font: SANS, size: 14, color: MUTED })] })
+  ] });
+  const doc = new Document({
+    creator: 'Peepal Consulting',
+    styles: { default: { document: { run: { font: SERIF, size: 21 } } } },
+    sections: [{ headers: { default: header }, footers: { default: footer },
+      properties: { page: { size: { width: 11906, height: 16838, orientation: PageOrientation.PORTRAIT }, margin: { top: 1400, right: 1200, bottom: 1400, left: 1200, header: 500, footer: 500 } } },
+      children }]
+  });
+  const blob = await Packer.toBlob(doc);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1500);
+}
+document.getElementById('dlWord').addEventListener('click', async ()=>{
+  const btn = document.getElementById('dlWord'); const lbl = document.getElementById('dlWordLabel');
+  const orig = lbl.textContent; lbl.textContent = 'Generating…'; btn.disabled = true;
+  try { await generateDocx(letterSections(), docFileName('docx')); }
+  catch(e){ console.error(e); alert('Word export failed: '+(e.message||e)); }
+  finally { lbl.textContent = orig; btn.disabled = false; }
+});
+document.getElementById('dlCalcWord') && document.getElementById('dlCalcWord').addEventListener('click', async ()=>{
+  const btn = document.getElementById('dlCalcWord'); btn.disabled = true;
+  try { await generateDocx([buildCalcSection()], calcFileName('docx')); }
+  catch(e){ console.error(e); alert('Word export failed: '+(e.message||e)); }
+  finally { btn.disabled = false; }
+});
+
+
+/* ---------- departments & roles ---------- */
+const DEPARTMENTS = {
+  "Business Development": [
+    "Executive - Business Development and Client Strategy",
+    "Senior Executive - Business Development and Client Strategy",
+    "Lead - Business Development and Client Strategy",
+    "Associate Manager - Business Development & Strategic Partnerships",
+    "Manager - Business Development & Strategic Partnerships"
+  ],
+  "Talent Acquisition": [
+    "Consultant - Talent Acquisition",
+    "Senior Consultant - Talent Acquisition",
+    "Associate Team Lead - Talent Acquisition",
+    "Team Lead - Talent Acquisition",
+    "Lead Consultant I - Talent Acquisition",
+    "Lead Consultant II - Talent Acquisition",
+    "Manager - Talent Acquisition",
+    "Senior Manager - Talent Acquisition",
+    "Associate Vice President - Talent Acquisition",
+    "Vice President - Talent Acquisition"
+  ],
+  "Marketing": [
+    "Executive - Marketing",
+    "Senior Executive - Marketing",
+    "Associate Manager - Marketing",
+    "Manager - Marketing"
+  ],
+  "Founder's Office": [
+    "Executive - Founder's Office",
+    "Lead - Strategy & Growth (Founder's Office)",
+    "Principal - Strategy & Growth (Founder's Office)",
+    "AVP - Strategy & Growth",
+    "VP - Strategy & Growth",
+    "Co-COO"
+  ],
+  "TA Dialogues": [
+    "Executive - Marketing for TA Dialogues",
+    "Senior Executive - Marketing for TA Dialogues",
+    "Associate Business Lead for TA Dialogues",
+    "Executive - Business Development & Client Relations for TA Dialogues",
+    "Senior Executive - Business Development & Client Relations for TA Dialogues",
+    "Associate Lead - Events & Community Operations for TA Dialogues"
+  ],
+  "People": [
+    /* role list pending — use "Other (type manually)" below meanwhile */
+  ]
+};
+const OTHER_ROLE = "Other (type manually)";
+
+/* ---------- promotion/salary index tiers ----------
+   Tier numbers per the Salary Promotion Index & Role Promotion Index tables.
+   Talent Acquisition (Delivery) has its own role→tier map; every other function
+   (HR, Internal TA, BD, Marketing, Founder's Office, TA Dialogues, People) shares one ladder. */
+const TIERS = {
+  1:{salary:16, role:8, capRolePromo:46.43, capNoRole:35},
+  2:{salary:14, role:7, capRolePromo:36.43, capNoRole:25},
+  3:{salary:12, role:6, capRolePromo:27.43, capNoRole:16}
+};
+const TRIGGER_TARGETS = {12:100,15:90,18:80,21:70};
+const QA_CUTOFF = 4.0;
+
+const ROLE_TIERS = {
+  "Talent Acquisition": {
+    "Consultant - Talent Acquisition":1, "Senior Consultant - Talent Acquisition":1,
+    "Associate Team Lead - Talent Acquisition":1,
+    "Team Lead - Talent Acquisition":2, "Lead Consultant I - Talent Acquisition":2,
+    "Lead Consultant II - Talent Acquisition":2, "Manager - Talent Acquisition":2,
+    "Senior Manager - Talent Acquisition":3, "Associate Vice President - Talent Acquisition":3,
+    "Vice President - Talent Acquisition":3
+  },
+  "Business Development": {
+    "Executive - Business Development and Client Strategy":1,
+    "Senior Executive - Business Development and Client Strategy":1,
+    "Lead - Business Development and Client Strategy":2,
+    "Associate Manager - Business Development & Strategic Partnerships":2,
+    "Manager - Business Development & Strategic Partnerships":2
+  },
+  "Marketing": {
+    "Executive - Marketing":1, "Senior Executive - Marketing":1,
+    "Associate Manager - Marketing":2, "Manager - Marketing":2
+  },
+  "Founder's Office": {
+    "Executive - Founder's Office":1,
+    "Lead - Strategy & Growth (Founder's Office)":2,
+    "Principal - Strategy & Growth (Founder's Office)":2,
+    "AVP - Strategy & Growth":3, "VP - Strategy & Growth":3, "Co-COO":3
+  },
+  "TA Dialogues": {
+    "Executive - Marketing for TA Dialogues":1,
+    "Senior Executive - Marketing for TA Dialogues":1,
+    "Associate Business Lead for TA Dialogues":2,
+    "Executive - Business Development & Client Relations for TA Dialogues":1,
+    "Senior Executive - Business Development & Client Relations for TA Dialogues":1,
+    "Associate Lead - Events & Community Operations for TA Dialogues":2
+  },
+  "People": {}
+};
+function tierFor(dept, role){ return (ROLE_TIERS[dept] && ROLE_TIERS[dept][role]) || null; }
+
+/* ---------- generic dropdown populate/cascade helper ---------- */
+function populateDeptSelect(sel){
+  Object.keys(DEPARTMENTS).forEach(d=>{
+    const o=document.createElement('option'); o.value=d; o.textContent=d; sel.appendChild(o);
+  });
+}
+function cascadeRoles(deptSel, roleSel, otherWrapId, placeholder){
+  const d=deptSel.value;
+  roleSel.innerHTML='';
+  const otherWrap=otherWrapId?document.getElementById(otherWrapId):null;
+  if(!d){
+    roleSel.disabled=true;
+    roleSel.innerHTML=`<option value="">${placeholder}</option>`;
+    if(otherWrap) otherWrap.style.display='none';
+  } else {
+    roleSel.disabled=false;
+    const ph=document.createElement('option'); ph.value=''; ph.textContent='Select role…';
+    roleSel.appendChild(ph);
+    DEPARTMENTS[d].forEach(r=>{
+      const o=document.createElement('option'); o.value=r; o.textContent=r; roleSel.appendChild(o);
+    });
+    const oo=document.createElement('option'); oo.value=OTHER_ROLE; oo.textContent=OTHER_ROLE; roleSel.appendChild(oo);
+    if(otherWrap) otherWrap.style.display = (roleSel.value===OTHER_ROLE)?'block':'none';
+  }
+}
+
+/* ===== Offer-letter Department/Role ===== */
+const deptSel = document.getElementById('cDept');
+const roleSel = document.getElementById('cRole');
+populateDeptSelect(deptSel);
+deptSel.addEventListener('change',()=>{ cascadeRoles(deptSel, roleSel, 'cRoleOtherWrap', 'Select department first'); render(); });
+roleSel.addEventListener('change',()=>{
+  document.getElementById('cRoleOtherWrap').style.display = (roleSel.value===OTHER_ROLE)?'block':'none';
+  render();
+});
+document.getElementById('cRoleOther').addEventListener('input', render);
+
+/* ===== Promotion/Revision — Current Department/Role ===== */
+const pDeptSel = document.getElementById('pDept');
+const pRoleSel = document.getElementById('pRole');
+populateDeptSelect(pDeptSel);
+pDeptSel.addEventListener('change',()=>{ cascadeRoles(pDeptSel, pRoleSel, 'pRoleOtherWrap', 'Select department first'); render(); });
+pRoleSel.addEventListener('change',()=>{
+  document.getElementById('pRoleOtherWrap').style.display = (pRoleSel.value===OTHER_ROLE)?'block':'none';
+  render();
+});
+document.getElementById('pRoleOther').addEventListener('input', render);
+document.getElementById('pTierOther').addEventListener('change', render);
+
+/* ===== Promotion — New Department/Role (shown only when role promotion applies) ===== */
+const pNewDeptSel = document.getElementById('pNewDept');
+const pNewRoleSel = document.getElementById('pNewRole');
+populateDeptSelect(pNewDeptSel);
+pNewDeptSel.addEventListener('change',()=>{
+  const d=pNewDeptSel.value;
+  pNewRoleSel.innerHTML='';
+  if(!d){
+    pNewRoleSel.innerHTML='<option value="">Select role…</option>';
+  } else {
+    const ph=document.createElement('option'); ph.value=''; ph.textContent='Select role…'; pNewRoleSel.appendChild(ph);
+    DEPARTMENTS[d].forEach(r=>{ const o=document.createElement('option'); o.value=r; o.textContent=r; pNewRoleSel.appendChild(o); });
+    const oo=document.createElement('option'); oo.value=OTHER_ROLE; oo.textContent=OTHER_ROLE; pNewRoleSel.appendChild(oo);
+  }
+  document.getElementById('newRoleOtherWrap').style.display=(pNewRoleSel.value===OTHER_ROLE)?'block':'none';
+  render();
+});
+pNewRoleSel.addEventListener('change',()=>{
+  document.getElementById('newRoleOtherWrap').style.display=(pNewRoleSel.value===OTHER_ROLE)?'block':'none';
+  render();
+});
+document.getElementById('pNewRoleOther').addEventListener('input', render);
+
+/* =========================================================================
+   PROMOTION / SALARY REVISION ENGINE
+   Formula validated against real cases (Kalyani — salary-only; Kavana —
+   role + salary): both reproduce the actual revised CTC to the rupee.
+   ========================================================================= */
+function computePromotion(opts){
+  const {currentTier, destTier, perfPct, durationMonths, qa, rolePromoApplies, currentCTC} = opts;
+  const trigger = TRIGGER_TARGETS[durationMonths];
+  const salIdx = TIERS[currentTier].salary;
+  const rawSalaryPct = (perfPct / trigger) * salIdx;
+  const capTierUsed = rolePromoApplies ? destTier : currentTier;
+  const cap = TIERS[capTierUsed].capNoRole;
+  const salaryPct = Math.min(rawSalaryPct, cap);
+  const wasCapped = rawSalaryPct > cap;
+
+  let rolePct = 0, roleEligible = false, roleIdx = null;
+  if(rolePromoApplies){
+    roleIdx = TIERS[currentTier].role;
+    roleEligible = qa >= QA_CUTOFF;
+    rolePct = roleEligible ? (qa / QA_CUTOFF) * roleIdx : 0;
+  }
+  const totalPct = salaryPct + rolePct;
+  const changeAmt = Math.round(currentCTC * totalPct / 100);
+  const newCTC = currentCTC + changeAmt;
+  return {trigger, salIdx, rawSalaryPct, cap, salaryPct, wasCapped, capTierUsed,
+    roleIdx, roleEligible, rolePct, totalPct, changeAmt, newCTC};
+}
+
+/* ---------- resolve current selection into {dept, role, tier} for promo/revision ---------- */
+function resolvePRole(){
+  const dept = pDeptSel.value;
+  const isOther = pRoleSel.value === OTHER_ROLE;
+  const role = isOther ? (document.getElementById('pRoleOther').value || '[Current Role]') : pRoleSel.value;
+  const tier = isOther ? parseInt(document.getElementById('pTierOther').value,10) : (tierFor(dept, role) || 1);
+  return {dept, role, tier};
+}
+function resolveNewRole(){
+  const dept = pNewDeptSel.value || pDeptSel.value;
+  const isOther = pNewRoleSel.value === OTHER_ROLE;
+  const role = isOther ? (document.getElementById('pNewRoleOther').value || '[New Role]') : pNewRoleSel.value;
+  const tier = isOther ? null : (tierFor(dept, role) || null);
+  return {dept, role, tier};
+}
+
+/* ---------- calculation transparency sheet (its OWN standalone document) ----------
+   Screenshot-2 label set. Option 3: applied % in the VALUE column; the uncapped figure
+   lives only inside the BASIS text, never as a struck-down headline. QA/role rows are
+   omitted entirely for the Letter of Increment (salary-only). */
+function calcTable(opts, r){
+  const {perfPct, durationMonths, qa, rolePromoApplies, currentCTC} = opts;
+  const row=(l,v,note='')=>`<tr><td class="lab">${l}</td><td class="amt">${v}</td><td class="note">${note}</td></tr>`;
+  const perfBasis = `Average performance % of ${durationMonths} months`;
+  // Basis for the performance-based promotion %: show the formula + uncapped result, and the cap if it binds
+  let spBasis = `(Performance ÷ Benchmark) × Salary Promotion Index`;
+  if(r.wasCapped){
+    spBasis = `(${perfPct}% ÷ ${r.trigger}%) × ${r.salIdx} = ${r.rawSalaryPct.toFixed(2)}%, capped at ${r.cap}% as per internal policy`;
+  } else {
+    spBasis = `(${perfPct}% ÷ ${r.trigger}%) × ${r.salIdx} = ${r.rawSalaryPct.toFixed(2)}%`;
+  }
+  let html = `<table class="calc-tbl">
+    <thead><tr><th>Particulars</th><th class="amt">Value</th><th>Basis</th></tr></thead>
+    <tbody>
+      ${row('Promotion Duration (months)', durationMonths, 'Policy window')}
+      ${row('Performance Achievement', perfPct+'%', perfBasis)}
+      ${rolePromoApplies ? row('QA Achievement', qa, 'Avg. of the QA rating during the promotion duration') : ''}
+      ${row('Current Annual Salary', '₹'+fmt(currentCTC), '')}
+      <tr class="sec"><td colspan="3">Salary Promotion</td></tr>
+      ${row('Promotion Benchmark', r.trigger+'%', 'Benchmark as specified by policy')}
+      ${row('Performance-Based Promotion %', r.salaryPct.toFixed(2)+'%', spBasis)}`;
+  if(rolePromoApplies){
+    html += `<tr class="sec"><td colspan="3">Role Promotion</td></tr>
+      ${row('QA Benchmark', QA_CUTOFF.toFixed(1), 'Role promotion applies when the QA rating is 4 and above')}
+      ${row('Role Promotion %', r.rolePct.toFixed(2)+'%', `(QA Achievement ÷ QA Benchmark) × ${r.roleIdx}`)}`;
+  }
+  html += `<tr class="tot">${row('Total Salary Change %', r.totalPct.toFixed(2)+'%', rolePromoApplies?'Salary Promotion % + Role Promotion %':'Salary Promotion %')}</tr>
+      ${row('Total Salary Change (in ₹)', '₹'+fmt(r.changeAmt), 'Total Salary Change % × Current Annual Salary')}
+      <tr class="grand"><td class="lab">Revised CTC (post promotion)</td><td class="amt">₹${fmt(r.newCTC)}</td><td class="note" style="color:#cbb8a0">Current CTC + Total Salary Change</td></tr>
+    </tbody></table>`;
+  return html;
+}
+
+/* ---------- gather all promotion/revision inputs + computed result once ---------- */
+function promoData(){
+  const isPromotion = document.getElementById('letterType').value==='promotion';
+  const effDate = document.getElementById('pEffDate').value;
+  const name = document.getElementById('pName').value;
+  const cur = resolvePRole();
+  const ctc = parseFloat(document.getElementById('pCtc').value||'0');
+  const duration = parseInt(document.getElementById('pDuration').value,10);
+  const perf = parseFloat(document.getElementById('pPerf').value||'0');
+  const qa = parseFloat(document.getElementById('pQa').value||'0');
+  const roleApprove = isPromotion && document.getElementById('roleApproveToggle').checked;
+  const manager = document.getElementById('pManager').value;
+  const newr = roleApprove ? resolveNewRole() : null;
+  const destTier = roleApprove ? (newr.tier || cur.tier) : cur.tier;
+  const r = computePromotion({currentTier:cur.tier, destTier, perfPct:perf, durationMonths:duration,
+    qa, rolePromoApplies:roleApprove, currentCTC:ctc});
+  return {isPromotion, effDate, name, cur, ctc, duration, perf, qa, roleApprove, manager, newr, r};
+}
+
+/* ---------- LETTER (page 1 + salary breakup only; NO calculation) ---------- */
+function buildPromotionSections(){
+  const D = promoData();
+  const {effDate, name, ctc, roleApprove, newr, r} = D;
+  const newRoleText = roleApprove ? val(newr.role,'New Role Title') : '';
+  const dateStr = effDate?fmtDate(effDate):'<span class="ph">[Effective Date]</span>';
+
+  const page1 = roleApprove ? `
+    <p class="date-line"><b>Date:</b> ${dateStr}</p>
+    <div class="title">Letter of <span class="o">Promotion</span></div>
+    <div style="height:22px"></div>
+    <p>Dear ${val(name,'Employee Name')},</p>
+    <p>It is our great pleasure to inform you that you have been promoted to the position of <b>${newRoleText}</b>, with effect from <b>${dateStr}</b>. This promotion is in recognition of the fine work that you have done for the company.</p>
+    <p>Subsequent to this promotion, your remuneration will be <b>₹${fmt(r.newCTC)}</b> per annum.</p>
+    <p>This revision reflects our confidence in your abilities and the valuable contributions you have made to the organization.</p>
+    <p>We trust you will continue to embrace your new responsibilities with the same dedication and excellence you have demonstrated in your tenure with us so far.</p>
+    <p>Congratulations on this well-deserved milestone, and we wish you continued success in your role.</p>
+    <table class="sig-tbl p1-sig"><tr>
+      <td><div class="sig-line"></div><div class="sig-nm">Vijay Kumar</div><div class="sig-ti">Founder &amp; CEO</div></td>
+      <td class="r"><div class="sig-line"></div><div class="sig-nm">Employee Signature</div></td>
+    </tr></table>` : `
+    <p class="date-line"><b>Date:</b> ${dateStr}</p>
+    <div class="title">Letter of <span class="o">Increment</span></div>
+    <div style="height:22px"></div>
+    <p>Dear ${val(name,'Employee Name')},</p>
+    <p>It is our great pleasure to inform you that, in recognition of your continued contribution and the positive impact you create across the team, your remuneration is being revised with effect from <b>${dateStr}</b>.</p>
+    <p>Subsequent to this revision, your remuneration will be <b>₹${fmt(r.newCTC)}</b> per annum.</p>
+    <p>We deeply value the steadiness, expertise, and heart you bring to your work every day. You're someone we know we can count on, and your influence is felt well beyond your role.</p>
+    <p>Please accept our warm congratulations on this well-deserved acknowledgment. Thank you for everything you do, and we look forward to the continued success you'll help shape.</p>
+    <table class="sig-tbl p1-sig"><tr>
+      <td><div class="sig-line"></div><div class="sig-nm">Vijay Kumar</div><div class="sig-ti">Founder &amp; CEO</div></td>
+      <td class="r"><div class="sig-line"></div><div class="sig-nm">Employee Signature</div></td>
+    </tr></table>`;
+
+  const annexA = `
+    <div class="ax-head"><div class="ax-tag">Annexure A</div><h2>Salary Details</h2><div class="rule"></div></div>
+    ${salTable(r.newCTC)}
+    ${perks(r.newCTC)}
+    ${additionalBenefits(false, '')}
+  `;
+  return {page1, annexA};
+}
+
+/* ---------- CALCULATION SHEET (separate standalone document) ---------- */
+function buildCalcSection(){
+  const D = promoData();
+  const {isPromotion, name, roleApprove, duration, perf, qa, ctc, r} = D;
+  const title = roleApprove ? 'Promotion Calculation' : 'Increment Calculation';
+  return `
+    <div class="ax-head"><div class="ax-tag">${roleApprove?'Letter of Promotion':'Letter of Increment'}</div><h2>${title}</h2><div class="rule"></div></div>
+    <p style="margin:0 0 12px;color:var(--muted);font-size:9pt">Prepared for <b style="color:var(--ink)">${val(name,'Employee Name')}</b>. This sheet explains, line by line, how the revised compensation was arrived at.</p>
+    ${calcTable({perfPct:perf, durationMonths:duration, qa, rolePromoApplies:roleApprove, currentCTC:ctc}, r)}
+  `;
+}
+function docFileName(ext){
+  const mode = document.getElementById('letterType').value;
+  if(mode==='promotion'){
+    const n=(document.getElementById('pName').value||'Employee').trim().replace(/\s+/g,' ');
+    return `Letter of Promotion_${n}_Peepal Consulting.${ext}`;
+  }
+  if(mode==='revision'){
+    const n=(document.getElementById('pName').value||'Employee').trim().replace(/\s+/g,' ');
+    return `Letter of Increment_${n}_Peepal Consulting.${ext}`;
+  }
+  if(mode==='trainee'){
+    const n=(document.getElementById('tName').value||'Candidate').trim().replace(/\s+/g,' ');
+    return `Management Trainee Offer Letter_${n}_Peepal Consulting.${ext}`;
+  }
+  const n=(document.getElementById('cName').value||'Candidate').trim().replace(/\s+/g,' ');
+  return `Offer Letter_${n}_Peepal Consulting.${ext}`;
+}
+function calcFileName(ext){
+  const mode = document.getElementById('letterType').value;
+  const roleApprove = mode==='promotion' && document.getElementById('roleApproveToggle').checked;
+  const n=(document.getElementById('pName').value||'Employee').trim().replace(/\s+/g,' ');
+  return `${roleApprove?'Promotion':'Increment'} Calculation_${n}_Peepal Consulting.${ext}`;
+}
+
+/* ---------- letter-type mode switch ---------- */
+const letterTypeSel = document.getElementById('letterType');
+function applyModeVisibility(){
+  const mode = letterTypeSel.value;
+  document.querySelectorAll('[data-mode="offer"]').forEach(el=> el.style.display = (mode==='offer')?'block':'none');
+  document.querySelectorAll('[data-mode="promo"]').forEach(el=> el.style.display = (mode==='promotion'||mode==='revision')?'block':'none');
+  document.querySelectorAll('[data-mode="promoOnly"]').forEach(el=> el.style.display = (mode==='promotion')?'block':'none');
+  document.querySelectorAll('[data-mode="trainee"]').forEach(el=> el.style.display = (mode==='trainee')?'block':'none');
+  const admin = document.getElementById('adminOnly');
+  if(admin) admin.style.display = (IS_ADMIN && mode!=='trainee') ? 'block' : 'none';
+  const lbl = mode==='promotion' ? 'Letter of Promotion'
+            : mode==='revision'  ? 'Letter of Increment'
+            : mode==='trainee'   ? 'Management Trainee Offer Letter'
+            : 'Offer Letter';
+  document.getElementById('dlPdfLabel').textContent = lbl+' — PDF';
+  document.getElementById('dlWordLabel').textContent = lbl+' — Word';
+}
+letterTypeSel.addEventListener('change',()=>{ applyModeVisibility(); render(); });
+
+['offerDate','cName','cDoj','cCtc'].forEach(id=>document.getElementById(id).addEventListener('input',render));
+['tDate','tName','tRole','tStipend','tStart','tEnd','tDoj'].forEach(id=>document.getElementById(id).addEventListener('input',render));
+const avcToggle=document.getElementById('avcToggle'), avcWrap=document.getElementById('avcWrap'), avcText=document.getElementById('avcText');
+avcText.value=AVC_DEFAULT;
+avcToggle.addEventListener('change',()=>{avcWrap.classList.toggle('open',avcToggle.checked);render();});
+avcText.addEventListener('input',render);
+document.getElementById('avcReset').addEventListener('click',()=>{avcText.value=AVC_DEFAULT;render();});
+
+/* ---------- promotion/revision field wiring ---------- */
+['pEffDate','pName','pCtc','pDuration','pPerf','pQa','pManager'].forEach(id=>
+  document.getElementById(id).addEventListener('input', render));
+document.getElementById('pDuration').addEventListener('change', render);
+const roleApproveToggle = document.getElementById('roleApproveToggle');
+roleApproveToggle.addEventListener('change',()=>{
+  const on = roleApproveToggle.checked;
+  document.getElementById('newRoleWrap').style.display = on?'block':'none';
+  document.getElementById('newRoleWrap2').style.display = on?'block':'none';
+  document.getElementById('newRoleOtherWrap').style.display = (on && pNewRoleSel.value===OTHER_ROLE)?'block':'none';
+  render();
+});
+
+/* default dates = today */
+document.getElementById('pEffDate').value=new Date().toISOString().slice(0,10);
+applyModeVisibility();
+
+/* default offer date = today */
+document.getElementById('offerDate').value=new Date().toISOString().slice(0,10);
+document.getElementById('tDate').value=new Date().toISOString().slice(0,10);
+
+/* ===== PF and Variable Pay segmented button wiring ===== */
+function updateAvcVisibility(){
+  const avcRow = document.getElementById('avcToggle').closest('.grp');
+  if(avcRow){ avcRow.style.display = (varMode === 'yes') ? 'block' : 'none'; }
+  if(varMode === 'no'){
+    const t = document.getElementById('avcToggle');
+    if(t.checked){ t.checked = false; avcWrap.classList.remove('open'); }
+  }
+}
+document.querySelectorAll('#pfSeg button').forEach(b => {
+  b.addEventListener('click', ()=>{
+    if(b.classList.contains('on')) return;
+    pfMode = b.dataset.pf;
+    document.querySelectorAll('#pfSeg button').forEach(x => x.classList.toggle('on', x === b));
+    render();
+  });
+});
+document.querySelectorAll('#varSeg button').forEach(b => {
+  b.addEventListener('click', ()=>{
+    if(b.classList.contains('on')) return;
+    varMode = b.dataset.var;
+    document.querySelectorAll('#varSeg button').forEach(x => x.classList.toggle('on', x === b));
+    updateAvcVisibility();
+    render();
+  });
+});
+updateAvcVisibility();
+
+/* ===== LOGIN GATE ===== */
+mountLogin();
+
+</script>
+</body>
+</html>
