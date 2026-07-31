@@ -1,0 +1,25 @@
+# Netlify config for Peepal Letter Generator
+# Runs inject-secrets.js at build time to substitute credential placeholders
+# in the HTML with values from environment variables.
+#
+# Required env vars (set in Netlify UI → Site Settings → Environment Variables):
+#   ADMIN_USER   e.g. admin@peepalconsulting.com
+#   ADMIN_PASS   e.g. p33p4l4dmin
+#   HR_USER      e.g. hr@peepalconsulting.com
+#   HR_PASS      e.g. p33pal
+
+[build]
+  publish = "."
+  command = "node inject-secrets.js"
+
+# HTML file is a single-page app; serve as-is at root.
+[[redirects]]
+  from = "/"
+  to = "/Peepal_Letter_Generator_V2.14.html"
+  status = 200
+
+# Cache fonts aggressively (they never change)
+[[headers]]
+  for = "/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
